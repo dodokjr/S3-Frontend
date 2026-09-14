@@ -1,140 +1,159 @@
 import React, { useState, useEffect } from 'react'
-import { Link, NavLink } from 'react-router-dom'
 import { 
   FaPhoneAlt, 
   FaEnvelope, 
-  FaUser, 
-  FaFacebookF, 
-  FaLinkedinIn 
+  FaMapMarkerAlt,
+  FaWhatsapp
 } from 'react-icons/fa'
-import { FaXTwitter, FaMagnifyingGlass } from 'react-icons/fa6'
+import { FaMagnifyingGlass } from 'react-icons/fa6'
 import { HiMenu, HiX } from 'react-icons/hi'
 import LogoS3 from '../assets/LogoS3.svg'
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
+  const [activeSection, setActiveSection] = useState('home')
 
   const toggleMenu = () => setIsOpen(!isOpen)
   const closeMenu = () => setIsOpen(false)
 
-  // Deteksi scroll halaman
+  const navLinks = [
+    { name: 'Home', href: '#home', id: 'home' },
+    { name: 'About S3', href: '#about', id: 'about' },
+    { name: 'Customers', href: '#customers', id: 'customers' },
+    { name: 'Partners', href: '#partners', id: 'partners' },
+    { name: 'Contact S3', href: '#contact', id: 'contact' },
+  ]
+
   useEffect(() => {
     const handleScroll = () => {
-      if (window.scrollY > 36) { // Nilai disesuaikan dengan tinggi Top Bar
+      if (window.scrollY > 36) {
         setScrolled(true)
       } else {
         setScrolled(false)
       }
+
+      const sections = navLinks.map(link => document.getElementById(link.id))
+      const scrollPosition = window.scrollY + 100
+
+      sections.forEach(section => {
+        if (section) {
+          const sectionTop = section.offsetTop
+          const sectionHeight = section.offsetHeight
+
+          if (scrollPosition >= sectionTop && scrollPosition < sectionTop + sectionHeight) {
+            setActiveSection(section.id)
+          }
+        }
+      })
     }
 
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
+  }, [navLinks])
 
-  const navLinks = [
-    { name: 'Home', path: '/' },
-    { name: 'About S3', path: '/about' },
-    { name: 'Products', path: '/products' },
-    { name: 'News and Events', path: '/news-events' },
-    { name: 'Portal Support', path: '/portal-support' },
-    { name: 'Contact S3', path: '/contact' },
-  ]
+  const handleNavClick = (e, href) => {
+    e.preventDefault()
+    closeMenu()
+    
+    const targetElement = document.querySelector(href)
+    if (targetElement) {
+      targetElement.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
 
   return (
     <>
-      {/* 1. TOP BAR (Static/Absolute: Tertinggal di atas saat di-scroll) */}
-      <div className="absolute top-0 left-0 w-full z-50 border-b border-white/10 bg-black/60 backdrop-blur-sm text-xs text-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-9">
+      {/* 1. TOP BAR (Tanpa Media Sosial) */}
+      <div className="absolute top-0 left-0 w-full z-50 border-b border-white/10 bg-black/70 backdrop-blur-sm text-xs text-gray-200 transition-colors duration-500">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-10">
           
-          {/* Kontak Kiri */}
-          <div className="flex items-center space-x-3 sm:space-x-6 text-[11px] sm:text-xs overflow-x-auto no-scrollbar">
-            <a href="tel:5123293245" className="flex items-center gap-1.5 hover:text-white whitespace-nowrap transition-colors">
-              <FaPhoneAlt className="text-red-500 text-[10px]" />
-              <span>512.329.3245</span>
+          {/* Detail Kontak Kiri */}
+          <div className="flex items-center space-x-4 sm:space-x-6 text-[11px] sm:text-xs overflow-x-auto no-scrollbar py-1">
+
+            {/* WhatsApp */}
+            <a href="https://wa.me/6281234567890" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:text-white whitespace-nowrap transition-colors duration-300">
+              <FaWhatsapp className="text-green-500 text-[11px]" />
+              <span>+62 812-3456-7890</span>
             </a>
-            <a href="mailto:info@s3.com" className="hidden sm:flex items-center gap-1.5 hover:text-white whitespace-nowrap transition-colors">
+
+            {/* Email */}
+            <a href="mailto:info@s3.co.id" className="hidden sm:flex items-center gap-1.5 hover:text-white whitespace-nowrap transition-colors duration-300">
               <FaEnvelope className="text-red-500 text-[10px]" />
-              <span>info@s3.com</span>
-            </a>
-            <a href="/login" className="flex items-center gap-1.5 hover:text-white whitespace-nowrap transition-colors">
-              <FaUser className="text-red-500 text-[10px]" />
-              <span>Client Login</span>
+              <span>s3semarang@gmail.com</span>
             </a>
           </div>
 
-          {/* Media Sosial Kanan */}
-          <div className="flex items-center space-x-3">
-            <a href="https://facebook.com" target="_blank" rel="noreferrer" className="hover:text-red-400 transition-colors">
-              <FaFacebookF className="text-xs" />
-            </a>
-            <a href="https://twitter.com" target="_blank" rel="noreferrer" className="hover:text-red-400 transition-colors">
-              <FaXTwitter className="text-xs" />
-            </a>
-            <a href="https://linkedin.com" target="_blank" rel="noreferrer" className="hover:text-red-400 transition-colors">
-              <FaLinkedinIn className="text-xs" />
+          {/* Detail Kontak Kanan (Alamat) */}
+          <div className="flex items-center">
+            <a href="#contact" onClick={(e) => handleNavClick(e, '#contact')} className="flex items-center gap-1.5 hover:text-white whitespace-nowrap transition-colors duration-300 text-[11px] sm:text-xs">
+              <FaMapMarkerAlt className="text-red-500 text-[10px]" />
+              <span>Semarang, Jawa Tengah</span>
             </a>
           </div>
 
         </div>
       </div>
 
-      {/* 2. MAIN NAVBAR (Fixed Sticky: Mengikuti scroll) */}
+      {/* 2. MAIN NAVBAR */}
       <header 
-        className={`fixed left-0 z-40 w-full transition-all duration-300 ${
+        className={`fixed left-0 z-40 w-full transition-all duration-500 ease-in-out ${
           scrolled 
-            ? 'top-0 bg-gradient-to-r from-white via-[#bd1118] to-black text-white shadow-2xl border-b border-black/20' 
-            : 'top-9 bg-gradient-to-b from-black/80 via-black/40 to-transparent text-white'
+            ? 'top-0 bg-slate-900/95 backdrop-blur-md text-white shadow-xl border-b border-white/10 py-2.5' 
+            : 'top-10 bg-gradient-to-b from-black/80 via-black/40 to-transparent text-white py-3.5'
         }`}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between py-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
 
-          {/* Logo Gambar (Diberi pad background putih tipis jika di-scroll agar tetap kontras) */}
-          <Link to="/" onClick={closeMenu} className="flex items-center gap-2 group">
-            <div className={`p-1 rounded-full transition-all duration-300 ${scrolled ? 'bg-white/90 shadow-md' : ''}`}>
+          {/* Logo */}
+          <a href="#home" onClick={(e) => handleNavClick(e, '#home')} className="flex items-center gap-2 group">
+            <div className={`p-1.5 rounded-xl transition-all duration-500 ${scrolled ? 'bg-white/90 shadow-sm' : 'bg-white/10 backdrop-blur-xs'}`}>
               <img 
                 src={LogoS3} 
                 alt="Logo S3" 
-                className="h-10 sm:h-12 w-auto object-contain transition-transform duration-300 group-hover:scale-105"
+                className="h-9 sm:h-11 w-auto object-contain transition-transform duration-300 group-hover:scale-105"
               />
             </div>
-          </Link>
+          </a>
 
           {/* Desktop Nav Links */}
-          <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
-            {navLinks.map((link) => (
-              <NavLink
-                key={link.path}
-                to={link.path}
-                end={link.path === '/'}
-                className={({ isActive }) =>
-                  `transition-colors duration-200 ${
-                    isActive 
-                      ? 'text-white font-bold underline underline-offset-8 decoration-2' 
-                      : 'text-gray-100 hover:text-white'
-                  }`
-                }
-              >
-                {link.name}
-              </NavLink>
-            ))}
+          <nav className="hidden md:flex items-center space-x-7 text-sm font-medium">
+            {navLinks.map((link) => {
+              const isActive = activeSection === link.id
+              return (
+                <a
+                  key={link.id}
+                  href={link.href}
+                  onClick={(e) => handleNavClick(e, link.href)}
+                  className={`relative py-1 transition-colors duration-300 ease-in-out ${
+                    isActive ? 'text-red-500 font-bold' : 'text-gray-200 hover:text-white'
+                  }`}
+                >
+                  {link.name}
+                  <span 
+                    className={`absolute bottom-0 left-0 h-[2px] bg-red-500 transition-all duration-300 ease-in-out ${
+                      isActive ? 'w-full' : 'w-0 hover:w-full'
+                    }`} 
+                  />
+                </a>
+              )
+            })}
 
-            {/* Tombol Search */}
             <button 
               type="button" 
               aria-label="Search"
-              className="p-1.5 text-white hover:opacity-80 transition-opacity focus:outline-none"
+              className="p-2 text-gray-200 hover:text-white hover:bg-white/10 rounded-full transition-all duration-300 focus:outline-none"
             >
               <FaMagnifyingGlass className="text-sm" />
             </button>
           </nav>
 
-          {/* Mobile Hamburger & Search Button */}
+          {/* Mobile Hamburger & Search */}
           <div className="flex md:hidden items-center space-x-2">
             <button 
               type="button" 
               aria-label="Search"
-              className="p-2 text-white hover:opacity-80"
+              className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
             >
               <FaMagnifyingGlass className="text-base" />
             </button>
@@ -143,7 +162,7 @@ export default function Navbar() {
               onClick={toggleMenu}
               type="button"
               aria-label="Toggle Menu"
-              className="p-2 text-white focus:outline-none rounded-lg hover:bg-black/20 transition-colors"
+              className="p-2 text-white focus:outline-none rounded-lg hover:bg-white/10 transition-colors"
             >
               {isOpen ? <HiX className="text-2xl" /> : <HiMenu className="text-2xl" />}
             </button>
@@ -153,30 +172,28 @@ export default function Navbar() {
 
         {/* 3. MOBILE MENU DROPDOWN */}
         <div
-          className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out border-t border-white/10 ${
-            scrolled ? 'bg-black/95 text-white' : 'bg-black/90 backdrop-blur-lg text-white'
-          } ${
-            isOpen ? 'max-h-96 opacity-100 py-4' : 'max-h-0 opacity-0 py-0'
-          }`}
+          className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${
+            isOpen ? 'max-h-80 opacity-100 py-4 border-t border-white/10' : 'max-h-0 opacity-0 py-0'
+          } ${scrolled ? 'bg-slate-900/95 backdrop-blur-lg' : 'bg-black/90 backdrop-blur-lg'}`}
         >
           <div className="flex flex-col space-y-2 px-6">
-            {navLinks.map((link) => (
-              <NavLink
-                key={link.path}
-                to={link.path}
-                end={link.path === '/'}
-                onClick={closeMenu}
-                className={({ isActive }) =>
-                  `px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+            {navLinks.map((link) => {
+              const isActive = activeSection === link.id
+              return (
+                <a
+                  key={link.id}
+                  href={link.href}
+                  onClick={(e) => handleNavClick(e, link.href)}
+                  className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
                     isActive
-                      ? 'bg-red-600 text-white font-bold'
+                      ? 'bg-red-600 text-white font-bold shadow-md'
                       : 'text-gray-200 hover:bg-white/10 hover:text-white'
-                  }`
-                }
-              >
-                {link.name}
-              </NavLink>
-            ))}
+                  }`}
+                >
+                  {link.name}
+                </a>
+              )
+            })}
           </div>
         </div>
       </header>
