@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { FaBuilding, FaSearch, FaHandshake } from 'react-icons/fa'
 
 // Import/substitusi Logo Customer
@@ -52,7 +52,7 @@ export default function OurCustomers() {
     <section className="bg-white py-12 sm:py-16 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-7xl mx-auto space-y-8">
         
-        {/* Header Section (Title di Kanan + Underline Hover Merah, Putih, Hitam) */}
+        {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-gray-100 pb-8">
           
           {/* Quick Highlight Stats (Kiri) */}
@@ -74,13 +74,13 @@ export default function OurCustomers() {
               Kepercayaan Industri
             </span>
 
-            {/* Title dengan Animated Underline (Hitam, Merah, Putih) */}
+            {/* Title dengan Animated Underline */}
             <div className="group relative inline-block cursor-pointer">
               <h2 className="text-3xl sm:text-4xl font-black text-black tracking-tight uppercase">
                 Klien & Mitra Kami
               </h2>
               
-              {/* Garis Bawah Interaktif (Merah, Putih, Hitam) */}
+              {/* Garis Bawah Interaktif */}
               <span className="block h-[4px] w-full bg-black rounded-full transition-all duration-300 group-hover:bg-red-600 relative overflow-hidden mt-1">
                 <span className="absolute inset-0 w-0 bg-white group-hover:w-full transition-all duration-500 opacity-50" />
               </span>

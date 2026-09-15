@@ -1,84 +1,127 @@
-import React, { useState, useEffect } from 'react'
-import { 
-  FaPhoneAlt, 
-  FaEnvelope, 
+import { useEffect, useRef, useState } from 'react'
+import {
+  FaEnvelope,
   FaMapMarkerAlt,
-  FaWhatsapp
+  FaWhatsapp,
 } from 'react-icons/fa'
 import { FaMagnifyingGlass } from 'react-icons/fa6'
 import { HiMenu, HiX } from 'react-icons/hi'
 import LogoS3 from '../assets/LogoS3.svg'
 
+const navLinks = [
+  { name: 'Home', href: '#home', id: 'home' },
+  { name: 'About S3', href: '#about', id: 'about' },
+  { name: 'Customers', href: '#customers', id: 'customers' },
+  { name: 'Partners', href: '#partners', id: 'partners' },
+  { name: 'Contact S3', href: '#contact', id: 'contact' },
+]
+
+// Tinggi total top-bar + main navbar, dipakai sebagai offset saat scroll ke section
+// supaya bagian atas section tidak ketutup navbar yang fixed.
+const SCROLL_OFFSET = 96
+
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const [activeSection, setActiveSection] = useState('home')
+  const tickingRef = useRef(false)
 
-  const toggleMenu = () => setIsOpen(!isOpen)
+  const toggleMenu = () => setIsOpen((prev) => !prev)
   const closeMenu = () => setIsOpen(false)
 
-  const navLinks = [
-    { name: 'Home', href: '#home', id: 'home' },
-    { name: 'About S3', href: '#about', id: 'about' },
-    { name: 'Customers', href: '#customers', id: 'customers' },
-    { name: 'Partners', href: '#partners', id: 'partners' },
-    { name: 'Contact S3', href: '#contact', id: 'contact' },
-  ]
-
   useEffect(() => {
-    const handleScroll = () => {
-      if (window.scrollY > 36) {
-        setScrolled(true)
-      } else {
-        setScrolled(false)
+    const updateScrollState = () => {
+      setScrolled(window.scrollY > 36)
+
+      const scrollPosition = window.scrollY + 100
+      let currentSection = activeSectionRef.current
+
+      for (const link of navLinks) {
+        const section = document.getElementById(link.id)
+        if (!section) continue
+
+        const sectionTop = section.offsetTop
+        const sectionHeight = section.offsetHeight
+
+        if (scrollPosition >= sectionTop && scrollPosition < sectionTop + sectionHeight) {
+          currentSection = link.id
+          break
+        }
       }
 
-      const sections = navLinks.map(link => document.getElementById(link.id))
-      const scrollPosition = window.scrollY + 100
+      if (currentSection !== activeSectionRef.current) {
+        activeSectionRef.current = currentSection
+        setActiveSection(currentSection)
+      }
 
-      sections.forEach(section => {
-        if (section) {
-          const sectionTop = section.offsetTop
-          const sectionHeight = section.offsetHeight
-
-          if (scrollPosition >= sectionTop && scrollPosition < sectionTop + sectionHeight) {
-            setActiveSection(section.id)
-          }
-        }
-      })
+      tickingRef.current = false
     }
 
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [navLinks])
+    const handleScroll = () => {
+      if (!tickingRef.current) {
+        tickingRef.current = true
+        requestAnimationFrame(updateScrollState)
+      }
+    }
 
-  const handleNavClick = (e, href) => {
+    // Jalankan sekali saat mount, supaya state awal benar
+    // (misalnya saat halaman di-refresh dalam kondisi sudah di-scroll).
+    updateScrollState()
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Ref supaya closure di dalam useEffect selalu baca nilai activeSection terbaru
+  // tanpa perlu memasukkannya ke dependency array (yang akan memicu re-subscribe scroll).
+  const activeSectionRef = useRef(activeSection)
+  useEffect(() => {
+    activeSectionRef.current = activeSection
+  }, [activeSection])
+
+  const handleNavClick = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    targetSelector: string
+  ) => {
     e.preventDefault()
     closeMenu()
-    
-    const targetElement = document.querySelector(href)
+
+    const targetElement = document.querySelector<HTMLElement>(targetSelector)
     if (targetElement) {
-      targetElement.scrollIntoView({ behavior: 'smooth' })
+      const top =
+        targetElement.getBoundingClientRect().top + window.scrollY - SCROLL_OFFSET
+      window.scrollTo({ top, behavior: 'smooth' })
     }
+  }
+
+  const handleSearchClick = () => {
+    // TODO: sambungkan ke logika/komponen pencarian yang sesungguhnya
+    console.log('Search clicked')
   }
 
   return (
     <>
-      {/* 1. TOP BAR (Tanpa Media Sosial) */}
+      {/* 1. TOP BAR */}
       <div className="absolute top-0 left-0 w-full z-50 border-b border-white/10 bg-black/70 backdrop-blur-sm text-xs text-gray-200 transition-colors duration-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-10">
-          
+
           {/* Detail Kontak Kiri */}
           <div className="flex items-center space-x-4 sm:space-x-6 text-[11px] sm:text-xs overflow-x-auto no-scrollbar py-1">
-
-            {/* WhatsApp */}
-            <a href="https://wa.me/6281234567890" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:text-white whitespace-nowrap transition-colors duration-300">
+            <a
+              href="https://wa.me/6281234567890"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 hover:text-white whitespace-nowrap transition-colors duration-300"
+            >
               <FaWhatsapp className="text-green-500 text-[11px]" />
               <span>+62 812-3456-7890</span>
             </a>
 
-            {/* Email */}
-            <a href="mailto:info@s3.co.id" className="hidden sm:flex items-center gap-1.5 hover:text-white whitespace-nowrap transition-colors duration-300">
+            <a
+              href="mailto:s3semarang@gmail.com"
+              className="hidden sm:flex items-center gap-1.5 hover:text-white whitespace-nowrap transition-colors duration-300"
+            >
               <FaEnvelope className="text-red-500 text-[10px]" />
               <span>s3semarang@gmail.com</span>
             </a>
@@ -86,7 +129,11 @@ export default function Navbar() {
 
           {/* Detail Kontak Kanan (Alamat) */}
           <div className="flex items-center">
-            <a href="#contact" onClick={(e) => handleNavClick(e, '#contact')} className="flex items-center gap-1.5 hover:text-white whitespace-nowrap transition-colors duration-300 text-[11px] sm:text-xs">
+            <a
+              href="#contact"
+              onClick={(e) => handleNavClick(e, '#contact')}
+              className="flex items-center gap-1.5 hover:text-white whitespace-nowrap transition-colors duration-300 text-[11px] sm:text-xs"
+            >
               <FaMapMarkerAlt className="text-red-500 text-[10px]" />
               <span>Semarang, Jawa Tengah</span>
             </a>
@@ -96,21 +143,29 @@ export default function Navbar() {
       </div>
 
       {/* 2. MAIN NAVBAR */}
-      <header 
+      <header
         className={`fixed left-0 z-40 w-full transition-all duration-500 ease-in-out ${
-          scrolled 
-            ? 'top-0 bg-slate-900/95 backdrop-blur-md text-white shadow-xl border-b border-white/10 py-2.5' 
+          scrolled
+            ? 'top-0 bg-slate-900/95 backdrop-blur-md text-white shadow-xl border-b border-white/10 py-2.5'
             : 'top-10 bg-gradient-to-b from-black/80 via-black/40 to-transparent text-white py-3.5'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
 
           {/* Logo */}
-          <a href="#home" onClick={(e) => handleNavClick(e, '#home')} className="flex items-center gap-2 group">
-            <div className={`p-1.5 rounded-xl transition-all duration-500 ${scrolled ? 'bg-white/90 shadow-sm' : 'bg-white/10 backdrop-blur-xs'}`}>
-              <img 
-                src={LogoS3} 
-                alt="Logo S3" 
+          <a
+            href="#home"
+            onClick={(e) => handleNavClick(e, '#home')}
+            className="flex items-center gap-2 group"
+          >
+            <div
+              className={`p-1.5 rounded-xl transition-all duration-500 ${
+                scrolled ? 'bg-white/90 shadow-sm' : 'bg-white/10 backdrop-blur-xs'
+              }`}
+            >
+              <img
+                src={LogoS3}
+                alt="Logo S3"
                 className="h-9 sm:h-11 w-auto object-contain transition-transform duration-300 group-hover:scale-105"
               />
             </div>
@@ -125,23 +180,24 @@ export default function Navbar() {
                   key={link.id}
                   href={link.href}
                   onClick={(e) => handleNavClick(e, link.href)}
-                  className={`relative py-1 transition-colors duration-300 ease-in-out ${
+                  className={`group relative py-1 transition-colors duration-300 ease-in-out ${
                     isActive ? 'text-red-500 font-bold' : 'text-gray-200 hover:text-white'
                   }`}
                 >
                   {link.name}
-                  <span 
+                  <span
                     className={`absolute bottom-0 left-0 h-[2px] bg-red-500 transition-all duration-300 ease-in-out ${
-                      isActive ? 'w-full' : 'w-0 hover:w-full'
-                    }`} 
+                      isActive ? 'w-full' : 'w-0 group-hover:w-full'
+                    }`}
                   />
                 </a>
               )
             })}
 
-            <button 
-              type="button" 
+            <button
+              type="button"
               aria-label="Search"
+              onClick={handleSearchClick}
               className="p-2 text-gray-200 hover:text-white hover:bg-white/10 rounded-full transition-all duration-300 focus:outline-none"
             >
               <FaMagnifyingGlass className="text-sm" />
@@ -150,9 +206,10 @@ export default function Navbar() {
 
           {/* Mobile Hamburger & Search */}
           <div className="flex md:hidden items-center space-x-2">
-            <button 
-              type="button" 
+            <button
+              type="button"
               aria-label="Search"
+              onClick={handleSearchClick}
               className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
             >
               <FaMagnifyingGlass className="text-base" />
@@ -162,6 +219,7 @@ export default function Navbar() {
               onClick={toggleMenu}
               type="button"
               aria-label="Toggle Menu"
+              aria-expanded={isOpen}
               className="p-2 text-white focus:outline-none rounded-lg hover:bg-white/10 transition-colors"
             >
               {isOpen ? <HiX className="text-2xl" /> : <HiMenu className="text-2xl" />}

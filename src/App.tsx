@@ -1,4 +1,3 @@
-import React from 'react'
 import HeroBanner from './components/Home/HeroBanner'
 import AboutUs from './components/Home/AboutUs'
 import OurCustomers from './components/Home/OurCustomers'

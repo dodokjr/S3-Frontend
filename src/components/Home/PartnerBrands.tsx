@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { FaChevronLeft, FaChevronRight, FaTimes, FaExternalLinkAlt, FaCheckCircle } from 'react-icons/fa'
 
 // Substitusi Logo Brand / Principal
@@ -79,16 +79,13 @@ export default function PartnerBrands() {
       const scrollAmount = 320 // Lebar estimasi 1 card + gap
 
       if (direction === 'right') {
-        // Cek jika posisi scroll sudah mencapai atau mendekati kartu terakhir
         if (scrollLeft + clientWidth >= scrollWidth - 15) {
-          // Langsung reset ke posisi paling depan (Card 1) secara instan atau smooth
           scrollRef.current.scrollTo({ left: 0, behavior: 'smooth' })
         } else {
           scrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' })
         }
       } else if (direction === 'left') {
         if (scrollLeft <= 0) {
-          // Jika di kartu pertama lalu pencet kiri, lompat ke kartu paling ujung
           scrollRef.current.scrollTo({ left: scrollWidth, behavior: 'smooth' })
         } else {
           scrollRef.current.scrollBy({ left: -scrollAmount, behavior: 'smooth' })
@@ -117,10 +114,10 @@ export default function PartnerBrands() {
           <div className="flex flex-col items-start space-y-1">
             <div className="group relative inline-block cursor-pointer">
               <h2 className="text-2xl sm:text-3xl font-black text-black tracking-tight uppercase whitespace-nowrap">
-                PartnerBrands
+                Partner Brands
               </h2>
               
-              {/* Underline Hover Effect (Hitam, Merah, Putih) */}
+              {/* Underline Hover Effect */}
               <span className="block h-[4px] w-full bg-black rounded-full transition-all duration-300 group-hover:bg-red-600 relative overflow-hidden mt-1">
                 <span className="absolute inset-0 w-0 bg-white group-hover:w-full transition-all duration-500 opacity-50" />
               </span>
@@ -195,7 +192,7 @@ export default function PartnerBrands() {
 
       {/* Modal Deskripsi saat Card Diklik */}
       {selectedBrand && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-6 relative border-2 border-black shadow-2xl transition-all">
             
             <button

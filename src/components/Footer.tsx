@@ -1,4 +1,3 @@
-import React from 'react'
 import { FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaChevronUp, FaWhatsapp } from 'react-icons/fa'
 import LogoS3 from '../assets/LogoS3.svg'
 
@@ -23,28 +22,26 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-12 lg:py-16">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-12 items-start">
           
-          {/* Kolom 1: Logo & Title (Putih ke Abu-abuan, Hover Merah-Putih) */}
+          {/* Kolom 1: Logo & Title */}
           <div className="md:col-span-5 space-y-4">
             <a 
               href="#home" 
               onClick={(e) => handleNavClick(e, '#home')} 
               className="inline-flex items-center gap-3.5 group cursor-pointer select-none transition-all duration-500"
             >
-              {/* Logo S3 */}
               <div className="flex items-center gap-3">
-  <img 
-    src={LogoS3} 
-    alt="Logo S3" 
-    className="h-10 w-auto object-contain transition-transform duration-500 hover:scale-105"
-  />
-</div>
+                <img 
+                  src={LogoS3} 
+                  alt="Logo S3" 
+                  className="h-10 w-auto object-contain transition-transform duration-500 hover:scale-105"
+                />
+              </div>
 
-              {/* Title CV. Sinergi Solusi Sejahtera (S3) */}
               <div className="flex flex-col">
-              <h2 className="text-xl font-extrabold tracking-tight !text-white relative inline-block cursor-pointer group">
-    CV. Sinergi Solusi Sejahtera (S3)
-    <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-gradient-to-r from-red-500 to-white transition-all duration-500 group-hover:w-full"></span>
-  </h2>
+                <h2 className="text-xl font-extrabold tracking-tight !text-white relative inline-block cursor-pointer group">
+                  CV. Sinergi Solusi Sejahtera (S3)
+                  <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-gradient-to-r from-red-500 to-white transition-all duration-500 group-hover:w-full"></span>
+                </h2>
                 <span className="text-[11px] font-medium text-neutral-400 group-hover:text-red-400 transition-colors duration-500">
                   General Trading & Industrial Supply
                 </span>
@@ -56,7 +53,7 @@ export default function Footer() {
             </p>
           </div>
 
-          {/* Kolom 2: Navigasi Cepat dengan Animasi Garis Merah-Putih */}
+          {/* Kolom 2: Navigasi Cepat */}
           <div className="md:col-span-3 space-y-4">
             <h3 className="text-xs font-semibold text-white uppercase tracking-wider border-b border-neutral-800 pb-2">
               Navigasi Cepat
@@ -76,7 +73,6 @@ export default function Footer() {
                     className="relative inline-block py-0.5 text-neutral-300 hover:text-white transition-colors duration-300 group"
                   >
                     <span>{item.label}</span>
-                    {/* Animasi Garis Bawah Merah-Putih */}
                     <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-gradient-to-r from-red-600 to-white transition-all duration-300 ease-in-out group-hover:w-full" />
                   </a>
                 </li>
@@ -84,12 +80,13 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Kolom 3: Informasi Kantor & Kontak */}
+          {/* Kolom 3: Kantor & Kontak */}
           <div className="md:col-span-4 space-y-4">
             <h3 className="text-xs font-semibold text-white uppercase tracking-wider border-b border-neutral-800 pb-2">
               Kantor & Kontak
             </h3>
             <ul className="space-y-3.5 text-sm">
+              
               {/* Alamat */}
               <li>
                 <a
@@ -131,17 +128,18 @@ export default function Footer() {
                 </a>
               </li>
 
-              {/* Email */}
+              {/* Email (Diselaraskan dengan Navbar & ContactSection) */}
               <li>
                 <a
-                  href="mailto:info@s3.co.id"
+                  href="mailto:s3semarang@gmail.com"
                   className="relative group inline-flex items-center gap-3 text-neutral-300 hover:text-white transition-colors duration-300"
                 >
                   <FaEnvelope className="text-red-500 shrink-0 text-sm group-hover:scale-110 transition-transform duration-300" />
-                  <span>info@s3.co.id</span>
+                  <span>s3semarang@gmail.com</span>
                   <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-gradient-to-r from-red-600 to-white transition-all duration-300 ease-in-out group-hover:w-full" />
                 </a>
               </li>
+
             </ul>
           </div>
 
@@ -153,7 +151,6 @@ export default function Footer() {
             &copy; {new Date().getFullYear()} CV. Sinergi Solusi Sejahtera. All rights reserved.
           </p>
 
-          {/* Tombol Back to Top dengan Animasi Garis */}
           <button
             onClick={scrollToTop}
             type="button"

@@ -1,5 +1,3 @@
-import React from 'react'
-
 export default function HeroBanner() {
   const handleScrollTo = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     e.preventDefault()

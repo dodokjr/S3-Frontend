@@ -1,81 +1,13 @@
-import React, { useState } from 'react'
 import { 
-  FaBuilding, 
-  FaAward, 
-  FaBoxes, 
-  FaUsers, 
   FaBullseye, 
   FaRocket, 
-  FaChevronLeft, 
-  FaChevronRight 
 } from 'react-icons/fa'
 
 // Import aset gambar
 import BuildingImg from '../../assets/LogoS3.svg'
 import IndustryImg from '../../assets/LogoS3.svg'
-import Milestone1 from '../../assets/LogoS3.svg'
-import Milestone2 from '../../assets/vite.svg'
-import Milestone3 from '../../assets/hero.png'
 
 export default function AboutUs() {
-  const [currentSlide, setCurrentSlide] = useState(0)
-
-  const milestones = [
-    {
-      year: 'Fondasi',
-      image: Milestone1,
-      title: 'Pendirian Perusahaan',
-      description: 'CV. Sinergi Solusi Sejahtera (S3) didirikan di Semarang sebagai penyedia general trading dan solusi pasokan industri terpercaya.'
-    },
-    {
-      year: 'Kemitraan',
-      image: Milestone2,
-      title: 'Kerjasama Principal Global',
-      description: 'Menjalin kemitraan strategis dengan merek-merek internasional terkemuka seperti Tsubaki, Henkel Loctite, OSG, Kärcher, dan Stanley.'
-    },
-    {
-      year: 'Ekspansi',
-      image: Milestone3,
-      title: 'Kepercayaan Industri',
-      description: 'Melayani berbagai perusahaan manufaktur ternama, mulai dari PT Kubota Indonesia, PT Hartono Istana Teknologi (Polytron), hingga PT PGAS Solution.'
-    }
-  ]
-
-  const stats = [
-    {
-      icon: <FaBuilding className="text-xl sm:text-2xl text-red-600" />,
-      number: '1+',
-      label: 'Kantor Pusat & Distribusi',
-      sublabel: 'Semarang, Jawa Tengah'
-    },
-    {
-      icon: <FaAward className="text-xl sm:text-2xl text-red-600" />,
-      number: '10+',
-      label: 'Brand Partner Global',
-      sublabel: 'Tsubaki, Loctite, OSG, dll.'
-    },
-    {
-      icon: <FaBoxes className="text-xl sm:text-2xl text-red-600" />,
-      number: '100+',
-      label: 'Kategori Produk',
-      sublabel: 'Chains, Adhesives, Tools'
-    },
-    {
-      icon: <FaUsers className="text-xl sm:text-2xl text-red-600" />,
-      number: '50+',
-      label: 'Klien Industri',
-      sublabel: 'Tersebar di Indonesia'
-    }
-  ]
-
-  const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % milestones.length)
-  }
-
-  const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + milestones.length) % milestones.length)
-  }
-
   return (
     <section className="bg-white text-black py-12 sm:py-20 px-4 sm:px-6 lg:px-8 font-sans antialiased">
       <div className="max-w-7xl mx-auto space-y-20 sm:space-y-28">
