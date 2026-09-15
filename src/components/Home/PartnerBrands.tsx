@@ -4,9 +4,16 @@ import { FaChevronLeft, FaChevronRight, FaTimes, FaExternalLinkAlt, FaCheckCircl
 // Substitusi Logo Brand / Principal
 import DefaultBrandLogo from '../../assets/LogoS3.svg'
 
+interface Brand {
+  name: string
+  category: string
+  origin: string
+  desc: string
+}
+
 export default function PartnerBrands() {
-  const scrollRef = useRef(null)
-  const [selectedBrand, setSelectedBrand] = useState(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null)
   const [isHovered, setIsHovered] = useState(false)
 
   const brandData = [
@@ -73,7 +80,7 @@ export default function PartnerBrands() {
   ]
 
   // Logika Scroll dengan Deteksi Ujung (Reset Otomatis ke Depan)
-  const scroll = (direction) => {
+  const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {
       const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current
       const scrollAmount = 320 // Lebar estimasi 1 card + gap
