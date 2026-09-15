@@ -1,4 +1,4 @@
-import { FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaChevronUp, FaWhatsapp } from 'react-icons/fa'
+import { FaEnvelope, FaMapMarkerAlt, FaChevronUp, FaWhatsapp } from 'react-icons/fa'
 import LogoS3 from '../assets/LogoS3.svg'
 
 export default function Footer() {
@@ -21,18 +21,18 @@ export default function Footer() {
     <footer className="relative w-full bg-neutral-950 text-neutral-300 border-t border-neutral-800/80 transition-all duration-500">
       <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-12 lg:py-16">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-12 items-start">
-          
+
           {/* Kolom 1: Logo & Title */}
           <div className="md:col-span-5 space-y-4">
-            <a 
-              href="#home" 
-              onClick={(e) => handleNavClick(e, '#home')} 
+            <a
+              href="#home"
+              onClick={(e) => handleNavClick(e, '#home')}
               className="inline-flex items-center gap-3.5 group cursor-pointer select-none transition-all duration-500"
             >
               <div className="flex items-center gap-3">
-                <img 
-                  src={LogoS3} 
-                  alt="Logo S3" 
+                <img
+                  src={LogoS3}
+                  alt="Logo S3"
                   className="h-10 w-auto object-contain transition-transform duration-500 hover:scale-105"
                 />
               </div>
@@ -86,7 +86,7 @@ export default function Footer() {
               Kantor & Kontak
             </h3>
             <ul className="space-y-3.5 text-sm">
-              
+
               {/* Alamat */}
               <li>
                 <a
@@ -102,28 +102,16 @@ export default function Footer() {
                 </a>
               </li>
 
-              {/* Telepon */}
-              <li>
-                <a
-                  href="tel:+62241234567"
-                  className="relative group inline-flex items-center gap-3 text-neutral-300 hover:text-white transition-colors duration-300"
-                >
-                  <FaPhoneAlt className="text-red-500 shrink-0 text-sm group-hover:scale-110 transition-transform duration-300" />
-                  <span>(024) 123-4567</span>
-                  <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-gradient-to-r from-red-600 to-white transition-all duration-300 ease-in-out group-hover:w-full" />
-                </a>
-              </li>
-
               {/* WhatsApp */}
               <li>
                 <a
-                  href="https://wa.me/6281234567890"
+                  href="https://wa.me/628112706172"
                   target="_blank"
                   rel="noreferrer"
                   className="relative group inline-flex items-center gap-3 text-neutral-300 hover:text-white transition-colors duration-300"
                 >
                   <FaWhatsapp className="text-green-500 shrink-0 text-base group-hover:scale-110 transition-transform duration-300" />
-                  <span>+62 812-3456-7890</span>
+                  <span>+62 811-2706-172</span>
                   <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-gradient-to-r from-red-600 to-white transition-all duration-300 ease-in-out group-hover:w-full" />
                 </a>
               </li>
@@ -147,8 +135,23 @@ export default function Footer() {
 
         {/* Garis Pemisah & Bottom Bar */}
         <div className="mt-12 pt-6 border-t border-neutral-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-neutral-500">
-          <p>
-            &copy; {new Date().getFullYear()} CV. Sinergi Solusi Sejahtera. All rights reserved.
+          <p className="flex flex-wrap items-center justify-center gap-1.5 text-center">
+            <span>
+              &copy; {new Date().getFullYear()} CV. Sinergi Solusi Sejahtera. All rights reserved.
+            </span>
+            <span className="text-neutral-700">•</span>
+            <span className="inline-flex items-center gap-1">
+              Design by
+              <a
+                href="https://mfikria.vercel.app/app"
+                target="_blank"
+                rel="noreferrer"
+                className="relative inline-block font-semibold text-neutral-400 transition-colors duration-300 hover:text-pink-400 group/credit"
+              >
+                @mfikria
+                <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-gradient-to-r from-neutral-950 via-pink-500 to-neutral-950 transition-all duration-300 ease-in-out group-hover/credit:w-full" />
+              </a>
+            </span>
           </p>
 
           <button

@@ -109,13 +109,13 @@ export default function Navbar() {
           {/* Detail Kontak Kiri */}
           <div className="flex items-center space-x-4 sm:space-x-6 text-[11px] sm:text-xs overflow-x-auto no-scrollbar py-1">
             <a
-              href="https://wa.me/6281234567890"
+              href="https://wa.me/628112706172"
               target="_blank"
               rel="noreferrer"
               className="flex items-center gap-1.5 hover:text-white whitespace-nowrap transition-colors duration-300"
             >
               <FaWhatsapp className="text-green-500 text-[11px]" />
-              <span>+62 812-3456-7890</span>
+              <span>+62 811-2706-172</span>
             </a>
 
             <a
@@ -193,15 +193,6 @@ export default function Navbar() {
                 </a>
               )
             })}
-
-            <button
-              type="button"
-              aria-label="Search"
-              onClick={handleSearchClick}
-              className="p-2 text-gray-200 hover:text-white hover:bg-white/10 rounded-full transition-all duration-300 focus:outline-none"
-            >
-              <FaMagnifyingGlass className="text-sm" />
-            </button>
           </nav>
 
           {/* Mobile Hamburger & Search */}

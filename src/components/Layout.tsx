@@ -9,9 +9,9 @@ export default function Layout() {
       <Navbar />
 
       {/* Main Content: Benar-benar polos tanpa padding/margin/container */}
-      <main className="flex-grow w-full m-0 p-0">
+      <div className="flex-grow w-full m-0 p-0">
         <Outlet />
-      </main>
+      </div>
 
       {/* Footer Full Width */}
       <Footer />

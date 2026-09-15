@@ -44,7 +44,7 @@ export default function ContactSection() {
 
     const whatsappMessage = `Halo Tim CV. Sinergi Solusi Sejahtera,%0A%0APerkenalkan saya: *${formData.name}* (${formData.company.trim() || 'Personal'})%0AEmail: ${formData.email}%0ANo. Telp: ${formData.phone}%0A%0APesan:%0A${formData.message}`
     
-    window.open(`https://wa.me/6281234567890?text=${whatsappMessage}`, '_blank')
+    window.open(`https://wa.me/628112706172?text=${whatsappMessage}`, '_blank')
   }
 
   const mapAddressQuery = encodeURIComponent('CV. Sinergi Solusi Sejahtera, Jl. Bukit Seruni V No 132 RT.07 RW.19 SendangMulyo, Tembalang, Kota Semarang')
@@ -119,7 +119,7 @@ export default function ContactSection() {
                       Telepon / Hotline
                     </h4>
                     <p className="text-xs font-semibold text-black mt-1.5">
-                      +62 812-3456-7890
+                      +62 811-2706-172
                     </p>
                   </div>
                 </div>
@@ -148,7 +148,7 @@ export default function ContactSection() {
                   </div>
                 </div>
                 <a
-                  href="https://wa.me/6281234567890"
+                  href="https://wa.me/628112706172"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block w-full text-center bg-white text-emerald-700 font-bold text-xs py-2.5 rounded-lg hover:bg-emerald-50 transition-colors shadow-sm"
