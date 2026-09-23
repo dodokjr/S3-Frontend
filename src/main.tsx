@@ -5,6 +5,9 @@ import Layout from './components/Layout'
 import App from'./App'
 import './index.css'
 import './App.css'
+import AdminLogin from './components/dashbord/AdminLogin'
+import NotFound from './components/utilities/NotFound'
+import Dashboard from './components/dashbord/Dashboard'
 
 const router = createBrowserRouter([
   {
@@ -16,6 +19,18 @@ const router = createBrowserRouter([
         element: <App />,
       },
     ],
+  },
+  {
+    path: '/s3/signup',
+    element: <AdminLogin />,
+  },
+  {
+    path: '/s3/dashboard',
+    element: <Dashboard />,
+  },
+  {
+    path: '/*',
+    element: <NotFound />,
   },
 ])
 

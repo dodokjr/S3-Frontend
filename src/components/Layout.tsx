@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import Navbar from './Navbar'
 import Footer from './Footer'
+import Translator from './utilities/Translator'
 
 export default function Layout() {
   return (
@@ -12,7 +13,6 @@ export default function Layout() {
       <div className="flex-grow w-full m-0 p-0">
         <Outlet />
       </div>
-
       {/* Footer Full Width */}
       <Footer />
     </div>
