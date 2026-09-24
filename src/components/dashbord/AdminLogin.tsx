@@ -45,7 +45,7 @@ export default function AdminLogin() {
     setAlert(null);
 
     try {
-      const apiUrl = 'https://s3-backend-seven.vercel.app/api/login'; 
+      const apiUrl = 'https://s3-backend-seven.vercel.app/s3/api/auth/signin'; 
 
       const response = await axios.post<LoginResponse>(apiUrl, {
         email, // Backend menangkap key 'email' untuk input nama ataupun email
