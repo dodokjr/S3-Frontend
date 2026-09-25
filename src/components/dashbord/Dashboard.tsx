@@ -5,6 +5,8 @@ import StockTab from './Tabs/StockTab';
 import FinanceTab from './Tabs/FinanceTab';
 import ServerTab from './Tabs/ServerTab';
 import UsersTab from './Tabs/UsersTab';
+import SalesTab from './Tabs/SalesTab';
+import DeveloperTab from './Tabs/DeveloperTab'; // Import tab Developer
 
 interface Item {
   No_ID: number | string;
@@ -32,7 +34,6 @@ export default function Dashboard() {
   const [isViewOnly, setIsViewOnly] = useState(false);
   const [userName, setUserName] = useState('');
   const [userRole, setUserRole] = useState('');
-  const [userEmail, setUserEmail] = useState('');
 
   const [activeTab, setActiveTab] = useState('stock');
 
@@ -47,7 +48,7 @@ export default function Dashboard() {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState('karyawan');
 
-  // State untuk Notifikasi Modern dengan animasi slide-in dari kanan
+  // State untuk Notifikasi
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const notificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -62,7 +63,6 @@ export default function Dashboard() {
     }, 3500);
   };
 
-  // Bersihkan timeout notifikasi saat komponen unmount
   useEffect(() => {
     return () => {
       if (notificationTimeoutRef.current) {
@@ -71,10 +71,6 @@ export default function Dashboard() {
     };
   }, []);
 
-  // Helper: ambil token JWT tersimpan dan bentuk header Authorization.
-  // Dipusatkan di satu tempat supaya semua fetch yang butuh proteksi
-  // memakai token yang sama, konsisten dengan backend yang sekarang
-  // memvalidasi JWT di setiap route yang dilindungi.
   const getAuthHeaders = useCallback((): HeadersInit => {
     const token = localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token');
     return token
@@ -85,25 +81,28 @@ export default function Dashboard() {
   useEffect(() => {
     const localRole = localStorage.getItem('user_role');
     const localName = localStorage.getItem('user_name');
-    const localEmail = localStorage.getItem('user_email');
     const sessionRole = sessionStorage.getItem('user_role');
     const sessionName = sessionStorage.getItem('user_name');
-    const sessionEmail = sessionStorage.getItem('user_email');
 
     const activeRole = (localRole || sessionRole || '').toLowerCase();
     const activeName = localName || sessionName;
-    const activeEmail = localEmail || sessionEmail;
 
     if (!activeRole && !activeName) {
       setIsViewOnly(true);
     } else {
       setUserRole(activeRole);
       setUserName(activeName || 'Pengguna');
-      setUserEmail(activeEmail || '');
+      
+      // Auto switch tab default berdasarkan role
+      if (activeRole === 'sales' || activeRole === 'seles') {
+        setActiveTab('sales');
+      } else if (activeRole === 'finance') {
+        setActiveTab('finance');
+      }
     }
   }, []);
 
-  // Fetch data stock dari API dengan struktur data baru
+  // Fetch data stock dari API
   useEffect(() => {
     fetch(`${API_BASE}/stock`)
       .then((res) => res.json())
@@ -111,7 +110,6 @@ export default function Dashboard() {
         if (result.success && Array.isArray(result.data)) {
           const formattedItems: Item[] = result.data.map((item: any) => ({
             No_ID: item.No_ID || item.id || '',
-            // Menangani kemungkinan spasi pada key "Nama_Barang " dari response API
             Nama_Barang: item['Nama_Barang '] || item.Nama_Barang || item.name || '',
             Box: item.Box || 0,
             PerPcs: item.PerPcs || 0,
@@ -129,10 +127,7 @@ export default function Dashboard() {
       });
   }, []);
 
-  // Fungsi bantu untuk memuat ulang daftar user dari server.
-  // Backend melakukan headers.map(h => h.trim().toLowerCase()) sebelum
-  // mengirim response, sehingga semua key yang dikirim SELALU lowercase
-  // (id, name, email, role, is_login).
+  // Memuat daftar user
   const fetchUsers = useCallback(() => {
     fetch(`${API_BASE}/users`, { headers: getAuthHeaders() })
       .then((res) => res.json())
@@ -144,8 +139,6 @@ export default function Dashboard() {
             email: item.email || '',
             role: (item.role || 'karyawan').trim().toLowerCase(),
             status: item.is_login === true || item.is_login === 'TRUE' ? 'TRUE' : 'FALSE',
-            // Password sengaja tidak diminta/ditampilkan; backend juga tidak
-            // lagi mengirimkannya (lihat perbaikan endpoint GET /users).
           }));
           setUsersList(formattedUsers);
         } else if (result.message) {
@@ -158,15 +151,13 @@ export default function Dashboard() {
       });
   }, [getAuthHeaders]);
 
-  // Fetch data dari API users ketika tab 'users' aktif
   useEffect(() => {
     if (activeTab === 'users' && (userRole === 'developer' || userRole === 'admin' || userRole === 'semi dev')) {
       fetchUsers();
     }
   }, [activeTab, userRole, fetchUsers]);
 
-  // Memanggil endpoint logout di server (dengan token JWT sebagai bukti
-  // identitas) sebelum membersihkan sesi lokal dan redirect.
+  // Logout handler
   const handleLogoutConfirm = async () => {
     if (logoutInput.toLowerCase() !== 'keluar') return;
 
@@ -186,8 +177,7 @@ export default function Dashboard() {
     }
   };
 
-  // Memanggil PUT /users, lalu memperbarui state lokal hanya setelah
-  // server mengonfirmasi berhasil.
+  // Role update handler
   const handleRoleChange = async (targetId: number | string, newRoleTarget: string) => {
     if (userRole === 'semi dev') {
       showNotification('Semi Dev tidak memiliki izin untuk mengubah role pengguna!', 'error');
@@ -233,8 +223,7 @@ export default function Dashboard() {
     }
   };
 
-  // Memanggil DELETE /users dengan email target, baru menghapus dari
-  // state lokal setelah server mengonfirmasi berhasil.
+  // Delete user handler
   const handleDeleteUser = async (targetId: number | string) => {
     if (userRole === 'semi dev') {
       showNotification('Semi Dev tidak memiliki izin untuk menghapus akun/role!', 'error');
@@ -272,8 +261,7 @@ export default function Dashboard() {
     }
   };
 
-  // Memanggil POST /users, lalu memuat ulang daftar dari server untuk
-  // mendapatkan id sebenarnya yang di-generate backend (auto-increment).
+  // Add user handler
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (userRole === 'semi dev') {
@@ -311,21 +299,24 @@ export default function Dashboard() {
       setNewUserEmail('');
       setNewUserRole('karyawan');
       showNotification('Role/User baru berhasil ditambahkan!');
-      fetchUsers(); // muat ulang daftar agar mencerminkan data server
+      fetchUsers();
     } catch (err) {
       console.error('Gagal menambah user:', err);
       showNotification('Gagal menghubungi server untuk menambah user.', 'error');
     }
   };
 
-  // Role yang diizinkan mengakses tab Server & Manajemen Role
+  // Hak Akses Tab
   const canAccessServer = userRole === 'developer' || userRole === 'semi dev';
   const canAccessUsers = userRole === 'developer' || userRole === 'admin' || userRole === 'semi dev';
+  const canAccessFinance = userRole === 'developer' || userRole === 'admin' || userRole === 'semi dev' || userRole === 'finance';
+  const canAccessSales = userRole === 'developer' || userRole === 'admin' || userRole === 'semi dev' || userRole === 'sales' || userRole === 'seles';
+  const canAccessDeveloper = userRole === 'developer' || userRole === 'semi dev';
 
   return (
     <div className="bg-black text-white font-sans antialiased min-h-screen p-6 selection:bg-red-600 selection:text-white relative overflow-x-hidden">
 
-      {/* Toast Notifikasi Animasi Geser dari Kanan ke Kiri */}
+      {/* Toast Notifikasi */}
       <div className="fixed top-6 right-6 z-50 pointer-events-none">
         {notification && (
           <div className="transform translate-x-0 opacity-100 transition-all duration-300 ease-out animate-[slideInRight_0.3s_ease-out]">
@@ -365,14 +356,28 @@ export default function Dashboard() {
             >
               Laporan Stock
             </button>
-            <button
-              onClick={() => setActiveTab('finance')}
-              className={`text-xs font-medium px-4 py-2 rounded-lg transition-all cursor-pointer ${
-                activeTab === 'finance' ? 'bg-red-600 text-white shadow-md' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
-              }`}
-            >
-              Laporan Keuangan
-            </button>
+
+            {canAccessSales && (
+              <button
+                onClick={() => setActiveTab('sales')}
+                className={`text-xs font-medium px-4 py-2 rounded-lg transition-all cursor-pointer ${
+                  activeTab === 'sales' ? 'bg-red-600 text-white shadow-md' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                }`}
+              >
+                Penjualan (Sales)
+              </button>
+            )}
+
+            {canAccessFinance && (
+              <button
+                onClick={() => setActiveTab('finance')}
+                className={`text-xs font-medium px-4 py-2 rounded-lg transition-all cursor-pointer ${
+                  activeTab === 'finance' ? 'bg-red-600 text-white shadow-md' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                }`}
+              >
+                Keuangan (Finance)
+              </button>
+            )}
 
             {canAccessServer && (
               <button
@@ -395,19 +400,33 @@ export default function Dashboard() {
                 Manajemen Role
               </button>
             )}
+
+            {canAccessDeveloper && (
+              <button
+                onClick={() => setActiveTab('developer')}
+                className={`text-xs font-medium px-4 py-2 rounded-lg transition-all cursor-pointer ${
+                  activeTab === 'developer' ? 'bg-red-600 text-white shadow-md' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                }`}
+              >
+                Developer
+              </button>
+            )}
           </div>
         )}
 
         {/* KONTEN TAB */}
         {activeTab === 'stock' && <StockTab items={items} isViewOnly={isViewOnly} />}
 
-        {/* PERBAIKAN: FinanceTab sebelumnya dirender tanpa props sama sekali
-            (<FinanceTab />), padahal komponen itu sekarang butuh isViewOnly,
-            userRole, dan getAuthHeaders untuk menampilkan form tambah
-            transaksi dan mengirim token JWT saat submit. Tanpa ini, form
-            tambah pemasukan/pengeluaran tidak akan pernah muncul karena
-            userRole di dalam FinanceTab selalu undefined. */}
-        {activeTab === 'finance' && !isViewOnly && (
+        {activeTab === 'sales' && canAccessSales && (
+          <SalesTab
+            items={items}
+            isViewOnly={isViewOnly}
+            userRole={userRole}
+            getAuthHeaders={getAuthHeaders}
+          />
+        )}
+
+        {activeTab === 'finance' && canAccessFinance && (
           <FinanceTab
             isViewOnly={isViewOnly}
             userRole={userRole}
@@ -416,6 +435,7 @@ export default function Dashboard() {
         )}
 
         {activeTab === 'server' && canAccessServer && <ServerTab />}
+        
         {activeTab === 'users' && canAccessUsers && (
           <UsersTab
             usersList={usersList}
@@ -430,6 +450,10 @@ export default function Dashboard() {
             handleRoleChange={handleRoleChange}
             handleDeleteUser={handleDeleteUser}
           />
+        )}
+
+        {activeTab === 'developer' && canAccessDeveloper && (
+          <DeveloperTab userRole={userRole} getAuthHeaders={getAuthHeaders} />
         )}
 
       </div>
