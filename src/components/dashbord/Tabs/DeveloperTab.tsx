@@ -5,7 +5,7 @@ interface DeveloperTabProps {
   getAuthHeaders: () => HeadersInit;
 }
 
-export default function DeveloperTab({ userRole, getAuthHeaders }: DeveloperTabProps) {
+export default function DeveloperTab({ userRole }: DeveloperTabProps) {
   const [activeSubTab, setActiveSubTab] = useState<'logs' | 'api' | 'env' | 'database'>('logs');
 
   return (
