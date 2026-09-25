@@ -23,6 +23,11 @@ interface UsersTabProps {
   handleDeleteUser: (targetId: string | number) => void;
 }
 
+// Daftar role yang sah di sistem, dipakai untuk dropdown ganti role.
+// Disatukan di sini supaya tidak perlu diulang & gampang disinkronkan
+// kalau daftar role berubah di kemudian hari.
+const AVAILABLE_ROLES = ['developer', 'semi dev', 'admin', 'karyawan', 'users'];
+
 export default function UsersTab({
   usersList,
   userRole,
@@ -36,12 +41,17 @@ export default function UsersTab({
   handleRoleChange,
   handleDeleteUser,
 }: UsersTabProps) {
+  const isDeveloper = userRole === 'developer';
+  // Jumlah kolom tabel berubah tergantung apakah kolom "Hapus" ditampilkan,
+  // dipakai untuk colSpan baris "Tidak ada data" agar selalu akurat.
+  const columnCount = isDeveloper ? 7 : 6;
+
   return (
     <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-6">
       <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-300">Manajemen Role & Pengguna</h2>
       
       {/* Form Tambah Role Baru (Hanya Developer) */}
-      {userRole === 'developer' && (
+      {isDeveloper && (
         <form onSubmit={handleAddUser} className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl space-y-3">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider">Tambah Role / User Baru</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -84,61 +94,68 @@ export default function UsersTab({
               <th className="py-3 px-4">ID</th>
               <th className="py-3 px-4">Nama</th>
               <th className="py-3 px-4">Email</th>
-              <th className="py-3 px-4">Password</th>
               <th className="py-3 px-4">Role Saat Ini</th>
               <th className="py-3 px-4">Status</th>
               <th className="py-3 px-4">Aksi Ganti Role</th>
-              {userRole === 'developer' && <th className="py-3 px-4">Hapus</th>}
+              {isDeveloper && <th className="py-3 px-4">Hapus</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800/60">
             {usersList.length > 0 ? (
-              usersList.map((usr) => (
-                <tr key={usr.id} className="hover:bg-zinc-900/40 transition-colors">
-                  <td className="py-3 px-4 text-zinc-400">{usr.id}</td>
-                  <td className="py-3 px-4 font-medium text-white">{usr.name}</td>
-                  <td className="py-3 px-4 text-zinc-400">{usr.email}</td>
-                  <td className="py-3 px-4 text-zinc-500 font-mono">{usr.password || '••••••••'}</td>
-                  <td className="py-3 px-4 uppercase font-semibold text-red-500">{usr.role}</td>
-                  <td className="py-3 px-4">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                        usr.status === 'TRUE'
-                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                          : 'bg-red-950 text-red-400 border border-red-800'
-                      }`}
-                    >
-                      {usr.status || 'TRUE'}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4">
-                    <select
-                      value={usr.role}
-                      onChange={(e) => handleRoleChange(usr.id, e.target.value)}
-                      className="bg-zinc-900 border border-zinc-800 rounded-lg py-1 px-2 text-white text-xs focus:outline-none focus:border-red-600"
-                    >
-                      <option value="developer">developer</option>
-                      <option value="admin">admin</option>
-                      <option value="karyawan">karyawan</option>
-                      <option value="users">users</option>
-                      <option value={usr.role}>{usr.role}</option>
-                    </select>
-                  </td>
-                  {userRole === 'developer' && (
+              usersList.map((usr) => {
+                // Pastikan role user saat ini selalu punya opsi yang cocok di
+                // dropdown, bahkan kalau role itu tidak ada di AVAILABLE_ROLES
+                // (mis. role custom/lama), tanpa membuat duplikat value.
+                const roleOptions = AVAILABLE_ROLES.includes(usr.role)
+                  ? AVAILABLE_ROLES
+                  : [...AVAILABLE_ROLES, usr.role];
+
+                return (
+                  <tr key={usr.id} className="hover:bg-zinc-900/40 transition-colors">
+                    <td className="py-3 px-4 text-zinc-400">{usr.id}</td>
+                    <td className="py-3 px-4 font-medium text-white">{usr.name}</td>
+                    <td className="py-3 px-4 text-zinc-400">{usr.email}</td>
+                    <td className="py-3 px-4 uppercase font-semibold text-red-500">{usr.role}</td>
                     <td className="py-3 px-4">
-                      <button
-                        onClick={() => handleDeleteUser(usr.id)}
-                        className="bg-red-950/60 border border-red-800 text-red-300 hover:bg-red-900 px-3 py-1 rounded-lg text-xs transition-all cursor-pointer"
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                          usr.status === 'TRUE'
+                            ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                            : 'bg-red-950 text-red-400 border border-red-800'
+                        }`}
                       >
-                        Hapus
-                      </button>
+                        {usr.status || 'FALSE'}
+                      </span>
                     </td>
-                  )}
-                </tr>
-              ))
+                    <td className="py-3 px-4">
+                      <select
+                        value={usr.role}
+                        onChange={(e) => handleRoleChange(usr.id, e.target.value)}
+                        className="bg-zinc-900 border border-zinc-800 rounded-lg py-1 px-2 text-white text-xs focus:outline-none focus:border-red-600"
+                      >
+                        {roleOptions.map((roleOption) => (
+                          <option key={roleOption} value={roleOption}>
+                            {roleOption}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    {isDeveloper && (
+                      <td className="py-3 px-4">
+                        <button
+                          onClick={() => handleDeleteUser(usr.id)}
+                          className="bg-red-950/60 border border-red-800 text-red-300 hover:bg-red-900 px-3 py-1 rounded-lg text-xs transition-all cursor-pointer"
+                        >
+                          Hapus
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })
             ) : (
               <tr>
-                <td colSpan={8} className="py-6 text-center text-zinc-500">
+                <td colSpan={columnCount} className="py-6 text-center text-zinc-500">
                   Tidak ada data pengguna ditemukan.
                 </td>
               </tr>

@@ -28,9 +28,15 @@ export default function AdminLogin() {
   useEffect(() => {
     const storedRole = localStorage.getItem('user_role');
     const storedName = localStorage.getItem('user_name');
-    
-    // Jika role atau nama sudah tersimpan di localStorage, langsung arahkan ke dashboard
-    if (storedRole || storedName) {
+    const storedToken = localStorage.getItem('admin_token');
+
+    // PERBAIKAN: sebelumnya redirect terjadi hanya berdasarkan storedRole/storedName,
+    // padahal sekarang backend butuh token JWT untuk mengakses route yang dilindungi.
+    // Kalau role/nama tersimpan tapi token sudah hilang atau tidak pernah disimpan
+    // (mis. karena browser dibersihkan sebagian, atau bug lama sebelum token dipakai),
+    // user akan diarahkan ke dashboard tapi setiap request terproteksi akan gagal 401.
+    // Sekarang redirect hanya dilakukan kalau token juga ada.
+    if ((storedRole || storedName) && storedToken) {
       window.location.href = '/s3/Dashboard';
     }
   }, []);
@@ -58,18 +64,28 @@ export default function AdminLogin() {
       });
 
       const data = response.data;
-      const userRole = data.role || 'admin';
+      // PERBAIKAN: default 'admin' diganti ke 'karyawan' (role paling rendah).
+      // Fallback ini seharusnya nyaris tidak pernah terpakai karena backend selalu
+      // mengirim `role` saat success, tapi kalau suatu saat field itu kosong,
+      // lebih aman default ke akses paling minim daripada admin.
+      const userRole = data.role || 'karyawan';
       const token = data.token;
 
       // Simpan informasi role & user ke localStorage
       localStorage.setItem('user_role', userRole);
       localStorage.setItem('user_name', data.user?.name || '');
 
-      // Logika Penyimpanan Token (Developer = null, Admin/Karyawan = simpan token)
+      // PERBAIKAN: sebelumnya token hanya disimpan untuk role selain developer,
+      // dengan komentar "Developer tidak menggunakan token". Itu benar untuk versi
+      // backend yang lama, tapi backend sekarang SELALU menandatangani dan
+      // mengembalikan JWT untuk semua role (termasuk developer), karena middleware
+      // otorisasi di server memverifikasi role dari isi token, bukan lagi dari
+      // header yang bisa dipalsukan. Jadi token sekarang harus selalu disimpan
+      // kalau ada, apa pun rolenya.
       if (token) {
         localStorage.setItem('admin_token', token);
       } else {
-        localStorage.removeItem('admin_token'); // Developer tidak menggunakan token
+        localStorage.removeItem('admin_token');
       }
 
       // Tampilkan indikator berhasil masuk dengan info rolenya
