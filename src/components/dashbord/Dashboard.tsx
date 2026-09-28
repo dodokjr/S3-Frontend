@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import DashboardHeader from './DashboardHeader';
 import LogoutModal from './LogoutModal';
 import StockTab from './Tabs/StockTab';
@@ -6,7 +6,7 @@ import FinanceTab from './Tabs/FinanceTab';
 import ServerTab from './Tabs/ServerTab';
 import UsersTab from './Tabs/UsersTab';
 import SalesTab from './Tabs/SalesTab';
-import DeveloperTab from './Tabs/DeveloperTab'; // Import tab Developer
+import DeveloperTab from './Tabs/DeveloperTab';
 
 interface Item {
   No_ID: number | string;
@@ -19,49 +19,49 @@ interface Item {
   Gambar: string;
 }
 
-interface UserAccount {
-  id: number | string;
-  name: string;
-  email: string;
-  role: string;
-  status?: string;
-  password?: string;
-}
-
 const API_BASE = 'https://s3-backend-seven.vercel.app/s3/api';
+
+const normalizeRole = (role: unknown): string =>
+  String(role ?? '').trim().toLowerCase();
+
+const readStorageValue = (key: string): string => {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem(key) || sessionStorage.getItem(key) || '';
+};
 
 export default function Dashboard() {
   const [isViewOnly, setIsViewOnly] = useState(false);
   const [userName, setUserName] = useState('');
   const [userRole, setUserRole] = useState('');
-
   const [activeTab, setActiveTab] = useState('stock');
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [logoutInput, setLogoutInput] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const [usersList, setUsersList] = useState<UserAccount[]>([]);
   const [items, setItems] = useState<Item[]>([]);
+  const [notification, setNotification] = useState<{
+    message: string;
+    type: 'success' | 'error';
+  } | null>(null);
 
-  const [newUserName, setNewUserName] = useState('');
-  const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserRole, setNewUserRole] = useState('karyawan');
-
-  // State untuk Notifikasi
-  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const notificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
-    if (notificationTimeoutRef.current) {
-      clearTimeout(notificationTimeoutRef.current);
-    }
-    setNotification({ message, type });
-    notificationTimeoutRef.current = setTimeout(() => {
-      setNotification(null);
-      notificationTimeoutRef.current = null;
-    }, 3500);
-  };
+  const showNotification = useCallback(
+    (message: string, type: 'success' | 'error' = 'success') => {
+      if (notificationTimeoutRef.current) {
+        clearTimeout(notificationTimeoutRef.current);
+      }
+
+      setNotification({ message, type });
+
+      notificationTimeoutRef.current = setTimeout(() => {
+        setNotification(null);
+        notificationTimeoutRef.current = null;
+      }, 3500);
+    },
+    []
+  );
 
   useEffect(() => {
     return () => {
@@ -72,266 +72,139 @@ export default function Dashboard() {
   }, []);
 
   const getAuthHeaders = useCallback((): HeadersInit => {
-    const token = localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token');
-    return token
-      ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
-      : { 'Content-Type': 'application/json' };
+    const token =
+      (typeof window !== 'undefined' &&
+        (localStorage.getItem('admin_token') ||
+          sessionStorage.getItem('admin_token'))) ||
+      '';
+
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
   }, []);
 
   useEffect(() => {
-    const localRole = localStorage.getItem('user_role');
-    const localName = localStorage.getItem('user_name');
-    const sessionRole = sessionStorage.getItem('user_role');
-    const sessionName = sessionStorage.getItem('user_name');
+    const role = normalizeRole(readStorageValue('user_role'));
+    const name = readStorageValue('user_name');
 
-    const activeRole = (localRole || sessionRole || '').toLowerCase();
-    const activeName = localName || sessionName;
-
-    if (!activeRole && !activeName) {
+    if (!role && !name) {
       setIsViewOnly(true);
-    } else {
-      setUserRole(activeRole);
-      setUserName(activeName || 'Pengguna');
+      return;
+    }
 
-      // Auto switch tab default berdasarkan role
-      if (activeRole === 'sales' || activeRole === 'seles') {
-        setActiveTab('sales');
-      } else if (activeRole === 'finance') {
-        setActiveTab('finance');
-      }
+    setIsViewOnly(false);
+    setUserRole(role);
+    setUserName(name || 'Pengguna');
+
+    if (role === 'sales' || role === 'seles') {
+      setActiveTab('sales');
+    } else if (role === 'finance') {
+      setActiveTab('finance');
     }
   }, []);
 
-  // Fetch data stock dari API.
-  // Dibuat sebagai fungsi (useCallback) supaya bisa dipanggil ulang oleh StockTab
-  // lewat prop onRefresh setelah tambah / ubah / hapus stock.
-  const fetchStock = useCallback(() => {
-    fetch(`${API_BASE}/stock`)
-      .then((res) => res.json())
-      .then((result) => {
-        if (result.success && Array.isArray(result.data)) {
-          const formattedItems: Item[] = result.data.map((item: any) => ({
-            No_ID: item.No_ID || item.id || '',
-            Nama_Barang: item['Nama_Barang '] || item.Nama_Barang || item.name || '',
-            Box: item.Box || 0,
-            PerPcs: item.PerPcs || 0,
-            PerDus: item.PerDus || 0,
-            Harga: item.Harga || 0,
-            Satuan: item.Satuan || '',
-            Gambar: item.Gambar || '',
-          }));
-          setItems(formattedItems);
-        }
-      })
-      .catch((err) => {
-        console.error('Gagal mengambil data stock:', err);
-        showNotification('Gagal memuat data stock dari server.', 'error');
+  const fetchStock = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/stock`, {
+        headers: getAuthHeaders(),
       });
-  }, []);
+
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(result?.message || `Gagal memuat stock (${response.status}).`);
+      }
+
+      if (!result?.success || !Array.isArray(result.data)) {
+        throw new Error(result?.message || 'Format data stock dari server tidak valid.');
+      }
+
+      const formattedItems: Item[] = result.data.map((item: Record<string, unknown>) => ({
+        No_ID: item.No_ID ?? item.id ?? '',
+        Nama_Barang: String(item['Nama_Barang '] ?? item.Nama_Barang ?? item.name ?? ''),
+        Box: item.Box ?? 0,
+        PerPcs: item.PerPcs ?? 0,
+        PerDus: item.PerDus ?? 0,
+        Harga: item.Harga ?? 0,
+        Satuan: String(item.Satuan ?? ''),
+        Gambar: String(item.Gambar ?? ''),
+      }));
+
+      setItems(formattedItems);
+    } catch (error) {
+      console.error('Gagal mengambil data stock:', error);
+      showNotification(
+        error instanceof Error ? error.message : 'Gagal memuat data stock dari server.',
+        'error'
+      );
+    }
+  }, [getAuthHeaders, showNotification]);
 
   useEffect(() => {
-    fetchStock();
+    void fetchStock();
   }, [fetchStock]);
 
-  // Memuat daftar user
-  const fetchUsers = useCallback(() => {
-    fetch(`${API_BASE}/users`, { headers: getAuthHeaders() })
-      .then((res) => res.json())
-      .then((result) => {
-        if (result.success && Array.isArray(result.data)) {
-          const formattedUsers: UserAccount[] = result.data.map((item: any) => ({
-            id: item.id ?? '',
-            name: item.name || '',
-            email: item.email || '',
-            role: (item.role || 'karyawan').trim().toLowerCase(),
-            status: item.is_login === true || item.is_login === 'TRUE' ? 'TRUE' : 'FALSE',
-          }));
-          setUsersList(formattedUsers);
-        } else if (result.message) {
-          showNotification(result.message, 'error');
-        }
-      })
-      .catch((err) => {
-        console.error('Gagal mengambil data users:', err);
-        showNotification('Gagal memuat data pengguna dari server.', 'error');
-      });
-  }, [getAuthHeaders]);
-
-  useEffect(() => {
-    if (activeTab === 'users' && (userRole === 'developer' || userRole === 'admin' || userRole === 'semi dev')) {
-      fetchUsers();
-    }
-  }, [activeTab, userRole, fetchUsers]);
-
-  // Logout handler
   const handleLogoutConfirm = async () => {
-    if (logoutInput.toLowerCase() !== 'keluar') return;
+    if (logoutInput.trim().toLowerCase() !== 'keluar' || isLoggingOut) return;
 
     setIsLoggingOut(true);
+
     try {
       await fetch(`${API_BASE}/auth/logout`, {
         method: 'POST',
         headers: getAuthHeaders(),
       });
-    } catch (err) {
-      console.error('Gagal memproses logout di server:', err);
+    } catch (error) {
+      console.error('Gagal memproses logout di server:', error);
     } finally {
-      setIsLoggingOut(false);
-      localStorage.clear();
-      sessionStorage.clear();
-      window.location.href = '/s3/signup';
+      if (typeof window !== 'undefined') {
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.assign('/s3/signup');
+      }
     }
   };
 
-  // Role update handler
-  const handleRoleChange = async (targetId: number | string, newRoleTarget: string) => {
-    if (userRole === 'semi dev') {
-      showNotification('Semi Dev tidak memiliki izin untuk mengubah role pengguna!', 'error');
-      return;
-    }
-
-    const targetUser = usersList.find(u => u.id === targetId);
-
-    if (userRole === 'admin') {
-      if (targetUser?.role === 'developer' || targetUser?.role === 'semi dev') {
-        showNotification('Admin tidak memiliki izin untuk mengubah role seorang Developer/Semi Dev!', 'error');
-        return;
-      }
-      if (newRoleTarget === 'developer' || newRoleTarget === 'semi dev') {
-        showNotification('Admin tidak diizinkan mempromosikan user menjadi Developer/Semi Dev!', 'error');
-        return;
-      }
-    }
-
-    if (!targetUser?.email) {
-      showNotification('Email pengguna tidak ditemukan, tidak bisa memperbarui role.', 'error');
-      return;
-    }
-
-    try {
-      const res = await fetch(`${API_BASE}/users`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ email: targetUser.email, role: newRoleTarget }),
-      });
-      const result = await res.json();
-
-      if (!res.ok || !result.success) {
-        showNotification(result.message || 'Gagal memperbarui role pengguna.', 'error');
-        return;
-      }
-
-      setUsersList(usersList.map(u => u.id === targetId ? { ...u, role: newRoleTarget } : u));
-      showNotification('Role pengguna berhasil diperbarui.');
-    } catch (err) {
-      console.error('Gagal memperbarui role:', err);
-      showNotification('Gagal menghubungi server untuk memperbarui role.', 'error');
-    }
-  };
-
-  // Delete user handler
-  const handleDeleteUser = async (targetId: number | string) => {
-    if (userRole === 'semi dev') {
-      showNotification('Semi Dev tidak memiliki izin untuk menghapus akun/role!', 'error');
-      return;
-    }
-    if (userRole !== 'developer') {
-      showNotification('Hanya Developer yang dapat menghapus akun/role!', 'error');
-      return;
-    }
-
-    const targetUser = usersList.find(u => u.id === targetId);
-    if (!targetUser?.email) {
-      showNotification('Email pengguna tidak ditemukan, tidak bisa menghapus akun.', 'error');
-      return;
-    }
-
-    try {
-      const res = await fetch(`${API_BASE}/users`, {
-        method: 'DELETE',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ email: targetUser.email }),
-      });
-      const result = await res.json();
-
-      if (!res.ok || !result.success) {
-        showNotification(result.message || 'Gagal menghapus akun pengguna.', 'error');
-        return;
-      }
-
-      setUsersList(usersList.filter(u => u.id !== targetId));
-      showNotification('Akun pengguna berhasil dihapus.');
-    } catch (err) {
-      console.error('Gagal menghapus user:', err);
-      showNotification('Gagal menghubungi server untuk menghapus akun.', 'error');
-    }
-  };
-
-  // Add user handler
-  const handleAddUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (userRole === 'semi dev') {
-      showNotification('Semi Dev tidak memiliki izin untuk menambahkan role baru!', 'error');
-      return;
-    }
-    if (userRole !== 'developer') {
-      showNotification('Hanya Developer yang dapat menambahkan role baru!', 'error');
-      return;
-    }
-    if (!newUserName || !newUserEmail) {
-      showNotification('Nama dan Email wajib diisi!', 'error');
-      return;
-    }
-
-    try {
-      const res = await fetch(`${API_BASE}/users`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          name: newUserName,
-          email: newUserEmail,
-          role: newUserRole,
-          is_login: false,
-        }),
-      });
-      const result = await res.json();
-
-      if (!res.ok || !result.success) {
-        showNotification(result.message || 'Gagal menambahkan user baru.', 'error');
-        return;
-      }
-
-      setNewUserName('');
-      setNewUserEmail('');
-      setNewUserRole('karyawan');
-      showNotification('Role/User baru berhasil ditambahkan!');
-      fetchUsers();
-    } catch (err) {
-      console.error('Gagal menambah user:', err);
-      showNotification('Gagal menghubungi server untuk menambah user.', 'error');
-    }
-  };
-
-  // Hak Akses Tab
   const canAccessServer = userRole === 'developer' || userRole === 'semi dev';
-  const canAccessUsers = userRole === 'developer' || userRole === 'admin' || userRole === 'semi dev';
-  const canAccessFinance = userRole === 'developer' || userRole === 'admin' || userRole === 'semi dev' || userRole === 'finance';
-  const canAccessSales = userRole === 'developer' || userRole === 'admin' || userRole === 'semi dev' || userRole === 'sales' || userRole === 'seles';
+  const canAccessUsers =
+    userRole === 'developer' || userRole === 'admin' || userRole === 'semi dev';
+  const canAccessFinance =
+    userRole === 'developer' ||
+    userRole === 'admin' ||
+    userRole === 'semi dev' ||
+    userRole === 'finance';
+  const canAccessSales =
+    userRole === 'developer' ||
+    userRole === 'admin' ||
+    userRole === 'semi dev' ||
+    userRole === 'sales' ||
+    userRole === 'seles';
   const canAccessDeveloper = userRole === 'developer' || userRole === 'semi dev';
+
+  const handleTabChange = (tab: string, allowed: boolean) => {
+    if (allowed) setActiveTab(tab);
+  };
 
   return (
     <div className="bg-black text-white font-sans antialiased min-h-screen p-6 selection:bg-red-600 selection:text-white relative overflow-x-hidden">
-
-      {/* Toast Notifikasi */}
-      <div className="fixed top-6 right-6 z-50 pointer-events-none">
+      <div className="fixed top-6 right-6 z-50 pointer-events-none" aria-live="polite">
         {notification && (
-          <div className="transform translate-x-0 opacity-100 transition-all duration-300 ease-out animate-[slideInRight_0.3s_ease-out]">
-            <div className={`pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-2xl border text-xs font-medium shadow-2xl backdrop-blur-md ${
-              notification.type === 'success'
-                ? 'bg-zinc-900/95 border-emerald-800/80 text-emerald-400'
-                : 'bg-zinc-900/95 border-red-800/80 text-red-400'
-            }`}>
-              <span className={`w-2 h-2 rounded-full ${notification.type === 'success' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]'}`}></span>
+          <div className="transform translate-x-0 opacity-100 transition-all duration-300 ease-out">
+            <div
+              className={`pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-2xl border text-xs font-medium shadow-2xl backdrop-blur-md ${
+                notification.type === 'success'
+                  ? 'bg-zinc-900/95 border-emerald-800/80 text-emerald-400'
+                  : 'bg-zinc-900/95 border-red-800/80 text-red-400'
+              }`}
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  notification.type === 'success'
+                    ? 'bg-emerald-500'
+                    : 'bg-red-500'
+                }`}
+              />
               {notification.message}
             </div>
           </div>
@@ -339,8 +212,6 @@ export default function Dashboard() {
       </div>
 
       <div className="max-w-5xl mx-auto space-y-6">
-
-        {/* Header Dashboard */}
         <DashboardHeader
           isViewOnly={isViewOnly}
           userRole={userRole}
@@ -351,13 +222,15 @@ export default function Dashboard() {
           }}
         />
 
-        {/* Tab Navigasi Menu */}
         {!isViewOnly && (
           <div className="flex flex-wrap gap-2 bg-zinc-950 border border-zinc-800 p-2 rounded-xl">
             <button
-              onClick={() => setActiveTab('stock')}
+              type="button"
+              onClick={() => handleTabChange('stock', true)}
               className={`text-xs font-medium px-4 py-2 rounded-lg transition-all cursor-pointer ${
-                activeTab === 'stock' ? 'bg-red-600 text-white shadow-md' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                activeTab === 'stock'
+                  ? 'bg-red-600 text-white shadow-md'
+                  : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
               }`}
             >
               Laporan Stock
@@ -365,9 +238,12 @@ export default function Dashboard() {
 
             {canAccessSales && (
               <button
-                onClick={() => setActiveTab('sales')}
+                type="button"
+                onClick={() => handleTabChange('sales', canAccessSales)}
                 className={`text-xs font-medium px-4 py-2 rounded-lg transition-all cursor-pointer ${
-                  activeTab === 'sales' ? 'bg-red-600 text-white shadow-md' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                  activeTab === 'sales'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
                 }`}
               >
                 Penjualan (Sales)
@@ -376,9 +252,12 @@ export default function Dashboard() {
 
             {canAccessFinance && (
               <button
-                onClick={() => setActiveTab('finance')}
+                type="button"
+                onClick={() => handleTabChange('finance', canAccessFinance)}
                 className={`text-xs font-medium px-4 py-2 rounded-lg transition-all cursor-pointer ${
-                  activeTab === 'finance' ? 'bg-red-600 text-white shadow-md' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                  activeTab === 'finance'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
                 }`}
               >
                 Keuangan (Finance)
@@ -387,9 +266,12 @@ export default function Dashboard() {
 
             {canAccessServer && (
               <button
-                onClick={() => setActiveTab('server')}
+                type="button"
+                onClick={() => handleTabChange('server', canAccessServer)}
                 className={`text-xs font-medium px-4 py-2 rounded-lg transition-all cursor-pointer ${
-                  activeTab === 'server' ? 'bg-red-600 text-white shadow-md' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                  activeTab === 'server'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
                 }`}
               >
                 Pengaturan Server
@@ -398,9 +280,12 @@ export default function Dashboard() {
 
             {canAccessUsers && (
               <button
-                onClick={() => setActiveTab('users')}
+                type="button"
+                onClick={() => handleTabChange('users', canAccessUsers)}
                 className={`text-xs font-medium px-4 py-2 rounded-lg transition-all cursor-pointer ${
-                  activeTab === 'users' ? 'bg-red-600 text-white shadow-md' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                  activeTab === 'users'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
                 }`}
               >
                 Manajemen Role
@@ -409,9 +294,12 @@ export default function Dashboard() {
 
             {canAccessDeveloper && (
               <button
-                onClick={() => setActiveTab('developer')}
+                type="button"
+                onClick={() => handleTabChange('developer', canAccessDeveloper)}
                 className={`text-xs font-medium px-4 py-2 rounded-lg transition-all cursor-pointer ${
-                  activeTab === 'developer' ? 'bg-red-600 text-white shadow-md' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                  activeTab === 'developer'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
                 }`}
               >
                 Developer
@@ -420,7 +308,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* KONTEN TAB */}
         {activeTab === 'stock' && (
           <StockTab
             items={items}
@@ -451,28 +338,14 @@ export default function Dashboard() {
         {activeTab === 'server' && canAccessServer && <ServerTab />}
 
         {activeTab === 'users' && canAccessUsers && (
-          <UsersTab
-            usersList={usersList}
-            userRole={userRole}
-            newUserName={newUserName}
-            setNewUserName={setNewUserName}
-            newUserEmail={newUserEmail}
-            setNewUserEmail={setNewUserEmail}
-            newUserRole={newUserRole}
-            setNewUserRole={setNewUserRole}
-            handleAddUser={handleAddUser}
-            handleRoleChange={handleRoleChange}
-            handleDeleteUser={handleDeleteUser}
-          />
+          <UsersTab userRole={userRole} />
         )}
 
         {activeTab === 'developer' && canAccessDeveloper && (
           <DeveloperTab userRole={userRole} getAuthHeaders={getAuthHeaders} />
         )}
-
       </div>
 
-      {/* Modal Konfirmasi Log Out */}
       <LogoutModal
         isOpen={showLogoutModal}
         logoutInput={logoutInput}
