@@ -92,7 +92,7 @@ export default function Dashboard() {
     } else {
       setUserRole(activeRole);
       setUserName(activeName || 'Pengguna');
-      
+
       // Auto switch tab default berdasarkan role
       if (activeRole === 'sales' || activeRole === 'seles') {
         setActiveTab('sales');
@@ -102,8 +102,10 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Fetch data stock dari API
-  useEffect(() => {
+  // Fetch data stock dari API.
+  // Dibuat sebagai fungsi (useCallback) supaya bisa dipanggil ulang oleh StockTab
+  // lewat prop onRefresh setelah tambah / ubah / hapus stock.
+  const fetchStock = useCallback(() => {
     fetch(`${API_BASE}/stock`)
       .then((res) => res.json())
       .then((result) => {
@@ -126,6 +128,10 @@ export default function Dashboard() {
         showNotification('Gagal memuat data stock dari server.', 'error');
       });
   }, []);
+
+  useEffect(() => {
+    fetchStock();
+  }, [fetchStock]);
 
   // Memuat daftar user
   const fetchUsers = useCallback(() => {
@@ -415,7 +421,15 @@ export default function Dashboard() {
         )}
 
         {/* KONTEN TAB */}
-        {activeTab === 'stock' && <StockTab items={items} isViewOnly={isViewOnly} />}
+        {activeTab === 'stock' && (
+          <StockTab
+            items={items}
+            isViewOnly={isViewOnly}
+            userRole={userRole}
+            getAuthHeaders={getAuthHeaders}
+            onRefresh={fetchStock}
+          />
+        )}
 
         {activeTab === 'sales' && canAccessSales && (
           <SalesTab
@@ -435,7 +449,7 @@ export default function Dashboard() {
         )}
 
         {activeTab === 'server' && canAccessServer && <ServerTab />}
-        
+
         {activeTab === 'users' && canAccessUsers && (
           <UsersTab
             usersList={usersList}

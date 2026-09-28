@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 interface Item {
   No_ID: number | string;
@@ -18,7 +18,8 @@ interface SalesTabProps {
   getAuthHeaders: () => HeadersInit;
 }
 
-interface SaleData {
+// Bentuk data yang dikirim ke backend (POST / PUT)
+interface SalePayload {
   id?: string;
   Deskripsi: string;
   Costumer: string;
@@ -31,6 +32,22 @@ interface SaleData {
   jumlah?: number | string;
 }
 
+// Bentuk data yang dibaca dari GET /sales (kolom sheet: Pcs | Pack | Kilogram)
+interface SaleRow {
+  id?: string;
+  Deskripsi?: string;
+  Costumer?: string;
+  'harga jual'?: string;
+  'harga beli'?: string;
+  tgl?: string;
+  status?: string;
+  nama_seles?: string;
+  Pcs?: string;
+  Pack?: string;
+  Kilogram?: string;
+  [key: string]: any;
+}
+
 interface ToastState {
   show: boolean;
   message: string;
@@ -39,12 +56,38 @@ interface ToastState {
 
 type UnitTab = 'Pcs' | 'Pack' | 'Kilogram';
 
+const API_SALES = 'https://s3-backend-seven.vercel.app/s3/api/sales';
+
+// Menentukan jumlah & satuan dari kolom Pcs / Pack / Kilogram di sheet
+const getQtyAndUnit = (sale: SaleRow): { jumlah: number; satuan: UnitTab } => {
+  const pcs = Number(sale.Pcs ?? sale.pcs) || 0;
+  const pack = Number(sale.Pack ?? sale.pack) || 0;
+  const kg = Number(sale.Kilogram ?? sale.kilogram ?? sale.Kg ?? sale.kg) || 0;
+
+  if (kg > 0) return { jumlah: kg, satuan: 'Kilogram' };
+  if (pack > 0) return { jumlah: pack, satuan: 'Pack' };
+  return { jumlah: pcs, satuan: 'Pcs' };
+};
+
+const todayString = () =>
+  new Date().toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+
 export default function SalesTab({
   items,
-  isViewOnly,
+  isViewOnly: isViewOnlyProp,
   userRole,
   getAuthHeaders,
 }: SalesTabProps) {
+  // Hanya Sales, Developer, dan Admin yang boleh tambah / ubah / hapus.
+  // Role lain hanya melihat (form & tombol aksi dinonaktifkan).
+  const normalizedRole = (userRole || '').toLowerCase();
+  const canManageSales = ['developer', 'admin', 'sales'].includes(normalizedRole);
+  const isViewOnly = isViewOnlyProp || !canManageSales;
+
   // Tab Satuan Form (Pcs / Pack / Kilogram)
   const [activeUnitTab, setActiveUnitTab] = useState<UnitTab>('Pcs');
 
@@ -59,16 +102,20 @@ export default function SalesTab({
   const [hargaBeli, setHargaBeli] = useState<string>('');
   const [namaSeles, setNamaSeles] = useState<string>('');
   const [jumlah, setJumlah] = useState<number | string>(1);
-  const [tgl, setTgl] = useState<string>(
-    new Date().toLocaleDateString('id-ID', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    })
-  );
+  const [tgl, setTgl] = useState<string>(todayString());
   const [status, setStatus] = useState<string>('success');
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // Mode edit: berisi id transaksi yang sedang diedit (null = mode tambah)
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Konfirmasi hapus
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const formRef = useRef<HTMLDivElement | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // State Toast Notification (Pesan Samping Kanan)
   const [toast, setToast] = useState<ToastState>({
@@ -78,14 +125,21 @@ export default function SalesTab({
   });
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     setToast({ show: true, message, type });
-    setTimeout(() => {
+    toastTimeoutRef.current = setTimeout(() => {
       setToast({ show: false, message: '', type: 'success' });
     }, 3500);
   };
 
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    };
+  }, []);
+
   // State Tabel Riwayat Penjualan
-  const [salesHistory, setSalesHistory] = useState<SaleData[]>([]);
+  const [salesHistory, setSalesHistory] = useState<SaleRow[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -118,19 +172,34 @@ export default function SalesTab({
     setHargaJual('');
   };
 
+  // Reset form ke kondisi awal (mode tambah)
+  const resetForm = () => {
+    setEditingId(null);
+    setDeskripsi('');
+    setSelectedItemId('');
+    setCostumer('');
+    setHargaJual('');
+    setHargaBeli('');
+    setNamaSeles('');
+    setTgl(todayString());
+    setStatus('success');
+    setJumlah(activeUnitTab === 'Kilogram' ? 0.5 : 1);
+  };
+
   // Fetch Data Riwayat Transaksi Penjualan
   const fetchSalesHistory = useCallback(async () => {
     setIsLoadingHistory(true);
     try {
-      const response = await fetch('https://s3-backend-seven.vercel.app/s3/api/sales', {
-        headers: getAuthHeaders(),
-      });
+      const response = await fetch(API_SALES, { headers: getAuthHeaders() });
       const resData = await response.json();
       if (response.ok && resData.success && Array.isArray(resData.data)) {
         setSalesHistory(resData.data);
+      } else if (resData.message) {
+        showToast(resData.message, 'error');
       }
     } catch (err) {
       console.error('Gagal mengambil data penjualan:', err);
+      showToast('Gagal menghubungi server untuk memuat data penjualan.', 'error');
     } finally {
       setIsLoadingHistory(false);
     }
@@ -140,7 +209,30 @@ export default function SalesTab({
     fetchSalesHistory();
   }, [fetchSalesHistory]);
 
-  // Submit Penjualan ke Backend API
+  // Klik "Edit" di tabel -> isi form dengan data baris tersebut
+  const handleStartEdit = (sale: SaleRow) => {
+    const { jumlah: qty, satuan } = getQtyAndUnit(sale);
+
+    setConfirmDeleteId(null);
+    setEditingId(String(sale.id));
+
+    // Mode manual supaya field barang tidak terkunci ke dropdown stok
+    setInputMode('manual');
+    setSelectedItemId('');
+    setDeskripsi(sale.Deskripsi || '');
+    setCostumer(sale.Costumer || '');
+    setHargaJual(String(sale['harga jual'] ?? ''));
+    setHargaBeli(String(sale['harga beli'] ?? ''));
+    setNamaSeles(sale.nama_seles || '');
+    setTgl(sale.tgl || todayString());
+    setStatus((sale.status || 'success').toLowerCase());
+    setActiveUnitTab(satuan);
+    setJumlah(qty || (satuan === 'Kilogram' ? 0.5 : 1));
+
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  // Submit: POST (tambah) atau PUT (update) tergantung editingId
   const handleSubmitSales = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -151,21 +243,24 @@ export default function SalesTab({
 
     setIsSubmitting(true);
 
-    const payload: SaleData = {
+    const isEdit = editingId !== null;
+
+    const payload: SalePayload = {
+      ...(isEdit ? { id: editingId as string } : {}),
       Deskripsi: deskripsi,
       Costumer: costumer,
       'harga jual': hargaJual,
       'harga beli': hargaBeli || '0',
       satuan: activeUnitTab,
       jumlah: jumlah,
-      tgl: tgl || new Date().toLocaleDateString('id-ID'),
+      tgl: tgl || todayString(),
       status: status,
       nama_seles: namaSeles || userRole,
     };
 
     try {
-      const response = await fetch('https://s3-backend-seven.vercel.app/s3/api/sales', {
-        method: 'POST',
+      const response = await fetch(API_SALES, {
+        method: isEdit ? 'PUT' : 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(payload),
       });
@@ -173,18 +268,20 @@ export default function SalesTab({
       const resData = await response.json();
 
       if (response.ok && resData.success) {
-        showToast(`Transaksi penjualan (${activeUnitTab}) berhasil disimpan!`, 'success');
-        // Reset Form
-        setDeskripsi('');
-        setSelectedItemId('');
-        setCostumer('');
-        setHargaJual('');
-        setHargaBeli('');
-        setNamaSeles('');
-        setJumlah(activeUnitTab === 'Kilogram' ? 0.5 : 1);
+        showToast(
+          isEdit
+            ? `Transaksi #${editingId} berhasil diperbarui!`
+            : `Transaksi penjualan (${activeUnitTab}) berhasil disimpan!`,
+          'success'
+        );
+        resetForm();
         fetchSalesHistory();
       } else {
-        showToast(resData.message || 'Gagal menyimpan transaksi penjualan.', 'error');
+        showToast(
+          resData.message ||
+            (isEdit ? 'Gagal memperbarui transaksi penjualan.' : 'Gagal menyimpan transaksi penjualan.'),
+          'error'
+        );
       }
     } catch (err) {
       console.error('Error transaksi sales:', err);
@@ -194,13 +291,47 @@ export default function SalesTab({
     }
   };
 
+  // Hapus transaksi (setelah konfirmasi di baris tabel)
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+
+    try {
+      const response = await fetch(API_SALES, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ id }),
+      });
+      const resData = await response.json();
+
+      if (response.ok && resData.success) {
+        showToast(`Transaksi #${id} berhasil dihapus.`, 'success');
+        if (editingId === id) resetForm();
+        fetchSalesHistory();
+      } else {
+        showToast(resData.message || 'Gagal menghapus transaksi penjualan.', 'error');
+      }
+    } catch (err) {
+      console.error('Error hapus sales:', err);
+      showToast('Terjadi kesalahan jaringan saat menghapus data penjualan.', 'error');
+    } finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
+    }
+  };
+
   // Filter pencarian
-  const filteredSalesHistory = salesHistory.filter((sale) =>
-    (sale.Deskripsi || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (sale.Costumer || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (sale.nama_seles || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (sale.satuan || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const q = searchQuery.toLowerCase();
+  const filteredSalesHistory = salesHistory.filter((sale) => {
+    const { satuan } = getQtyAndUnit(sale);
+    return (
+      (sale.Deskripsi || '').toLowerCase().includes(q) ||
+      (sale.Costumer || '').toLowerCase().includes(q) ||
+      (sale.nama_seles || '').toLowerCase().includes(q) ||
+      satuan.toLowerCase().includes(q)
+    );
+  });
+
+  const showActions = !isViewOnly;
 
   return (
     <div className="space-y-6 relative">
@@ -243,7 +374,7 @@ export default function SalesTab({
 
       {/* TAB NAVIGASI SATUAN FORM (PCS, PACK, KILOGRAM) */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-zinc-950 border border-zinc-800 p-2.5 rounded-2xl">
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button
             type="button"
             onClick={() => handleTabChange('Pcs')}
@@ -307,10 +438,24 @@ export default function SalesTab({
       </div>
 
       {/* FORM INPUT SESUAI TAB BERJALAN */}
-      <div className="bg-zinc-950 border border-zinc-800 p-5 rounded-2xl space-y-4">
+      <div
+        ref={formRef}
+        className={`bg-zinc-950 border p-5 rounded-2xl space-y-4 ${
+          editingId !== null ? 'border-amber-700' : 'border-zinc-800'
+        }`}
+      >
         <div className="border-b border-zinc-800 pb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-zinc-200">
-            Form Transaksi — Penjualan Per Satuan <span className="text-red-500 font-bold">[{activeUnitTab}]</span>
+            {editingId !== null ? (
+              <>
+                Edit Transaksi <span className="text-amber-400 font-bold">#{editingId}</span>
+              </>
+            ) : (
+              <>
+                Form Transaksi — Penjualan Per Satuan{' '}
+                <span className="text-red-500 font-bold">[{activeUnitTab}]</span>
+              </>
+            )}
           </h3>
           <span className="text-[10px] bg-red-950 border border-red-800 text-red-400 px-2.5 py-0.5 rounded-full uppercase font-mono">
             Unit: {activeUnitTab}
@@ -319,7 +464,7 @@ export default function SalesTab({
 
         <form onSubmit={handleSubmitSales} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            
+
             {/* Conditional Input: Dropdown Stok vs Text Manual */}
             {inputMode === 'database' ? (
               <div className="md:col-span-2 lg:col-span-3">
@@ -471,13 +616,35 @@ export default function SalesTab({
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={isViewOnly || isSubmitting}
-            className="bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-semibold text-xs px-6 py-2.5 rounded-xl shadow-lg transition-all cursor-pointer"
-          >
-            {isSubmitting ? 'Memproses...' : `Simpan Penjualan (${activeUnitTab})`}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="submit"
+              disabled={isViewOnly || isSubmitting}
+              className="bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-semibold text-xs px-6 py-2.5 rounded-xl shadow-lg transition-all cursor-pointer"
+            >
+              {isSubmitting
+                ? 'Memproses...'
+                : editingId !== null
+                  ? 'Simpan Perubahan'
+                  : `Simpan Penjualan (${activeUnitTab})`}
+            </button>
+
+            {editingId !== null && (
+              <button
+                type="button"
+                onClick={resetForm}
+                className="bg-zinc-800 hover:bg-zinc-700 text-white font-medium text-xs px-5 py-2.5 rounded-xl transition-all cursor-pointer"
+              >
+                Batal Edit
+              </button>
+            )}
+          </div>
+
+          {!canManageSales && !isViewOnlyProp && (
+            <p className="text-[11px] text-zinc-500">
+              Role Anda hanya bisa melihat data penjualan.
+            </p>
+          )}
         </form>
       </div>
 
@@ -519,39 +686,100 @@ export default function SalesTab({
                   <th className="pb-3 font-medium">Harga Beli</th>
                   <th className="pb-3 font-medium">Harga Jual</th>
                   <th className="pb-3 font-medium text-center">Status</th>
+                  {showActions && <th className="pb-3 font-medium text-right">Aksi</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-900">
-                {filteredSalesHistory.map((sale, idx) => (
-                  <tr key={sale.id || idx} className="hover:bg-zinc-900/50 transition-colors">
-                    <td className="py-3 text-zinc-400">#{sale.id || idx + 1}</td>
-                    <td className="py-3 text-zinc-400">{sale.tgl || '-'}</td>
-                    <td className="py-3 text-zinc-200 font-medium">{sale.Deskripsi}</td>
-                    <td className="py-3 text-zinc-300">{sale.Costumer}</td>
-                    <td className="py-3 text-zinc-300">
-                      <span className="font-semibold text-white">{sale.jumlah || 1}</span>{' '}
-                      <span className="text-[11px] text-zinc-400">({sale.satuan || 'Pcs'})</span>
-                    </td>
-                    <td className="py-3 text-zinc-400 capitalize">{sale.nama_seles}</td>
-                    <td className="py-3 text-zinc-400">
-                      Rp {Number(sale['harga beli'] || 0).toLocaleString('id-ID')}
-                    </td>
-                    <td className="py-3 font-bold text-emerald-400">
-                      Rp {Number(sale['harga jual'] || 0).toLocaleString('id-ID')}
-                    </td>
-                    <td className="py-3 text-center">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-medium uppercase ${
-                          sale.status === 'success'
-                            ? 'bg-emerald-950 border border-emerald-800 text-emerald-400'
-                            : 'bg-zinc-800 border border-zinc-700 text-zinc-400'
-                        }`}
-                      >
-                        {sale.status || 'success'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {filteredSalesHistory.map((sale, idx) => {
+                  const saleId = sale.id ? String(sale.id) : '';
+                  const { jumlah: qty, satuan } = getQtyAndUnit(sale);
+                  const isEditingRow = editingId !== null && editingId === saleId;
+                  const isConfirming = confirmDeleteId === saleId && saleId !== '';
+                  const isDeleting = deletingId === saleId;
+
+                  return (
+                    <tr
+                      key={saleId || idx}
+                      className={`transition-colors ${
+                        isEditingRow ? 'bg-amber-950/20' : 'hover:bg-zinc-900/50'
+                      }`}
+                    >
+                      <td className="py-3 text-zinc-400">#{saleId || idx + 1}</td>
+                      <td className="py-3 text-zinc-400">{sale.tgl || '-'}</td>
+                      <td className="py-3 text-zinc-200 font-medium">{sale.Deskripsi}</td>
+                      <td className="py-3 text-zinc-300">{sale.Costumer}</td>
+                      <td className="py-3 text-zinc-300">
+                        <span className="font-semibold text-white">{qty}</span>{' '}
+                        <span className="text-[11px] text-zinc-400">({satuan})</span>
+                      </td>
+                      <td className="py-3 text-zinc-400 capitalize">{sale.nama_seles}</td>
+                      <td className="py-3 text-zinc-400">
+                        Rp {Number(sale['harga beli'] || 0).toLocaleString('id-ID')}
+                      </td>
+                      <td className="py-3 font-bold text-emerald-400">
+                        Rp {Number(sale['harga jual'] || 0).toLocaleString('id-ID')}
+                      </td>
+                      <td className="py-3 text-center">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-medium uppercase ${
+                            (sale.status || 'success') === 'success'
+                              ? 'bg-emerald-950 border border-emerald-800 text-emerald-400'
+                              : 'bg-zinc-800 border border-zinc-700 text-zinc-400'
+                          }`}
+                        >
+                          {sale.status || 'success'}
+                        </span>
+                      </td>
+
+                      {showActions && (
+                        <td className="py-3">
+                          <div className="flex items-center justify-end gap-2">
+                            {isConfirming ? (
+                              <>
+                                <span className="text-[10px] text-zinc-400">Hapus?</span>
+                                <button
+                                  type="button"
+                                  disabled={isDeleting}
+                                  onClick={() => handleDelete(saleId)}
+                                  className="text-[11px] bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded-lg transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                  {isDeleting ? '...' : 'Ya'}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isDeleting}
+                                  onClick={() => setConfirmDeleteId(null)}
+                                  className="text-[11px] bg-zinc-800 hover:bg-zinc-700 text-white px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+                                >
+                                  Batal
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={!saleId}
+                                  onClick={() => handleStartEdit(sale)}
+                                  className="text-[11px] bg-zinc-800 hover:bg-amber-700 text-white px-2.5 py-1 rounded-lg transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={!saleId}
+                                  onClick={() => setConfirmDeleteId(saleId)}
+                                  className="text-[11px] bg-zinc-800 hover:bg-red-700 text-white px-2.5 py-1 rounded-lg transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                  Hapus
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

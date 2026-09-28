@@ -23,6 +23,7 @@ export default function AdminLogin() {
   const [password, setPassword] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [alert, setAlert] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [alertVisible, setAlertVisible] = useState<boolean>(false);
 
   // Cek apakah user sudah login sebelumnya saat komponen dimuat
   useEffect(() => {
@@ -41,6 +42,35 @@ export default function AdminLogin() {
     }
   }, []);
 
+  // Picu animasi slide-in setelah elemen ter-mount (double rAF supaya transisi terbaca browser)
+  useEffect(() => {
+    if (!alert) {
+      setAlertVisible(false);
+      return;
+    }
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setAlertVisible(true));
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [alert]);
+
+  // Tutup dengan animasi slide-out, lalu hapus alert dari state
+  const closeAlert = () => {
+    setAlertVisible(false);
+    setTimeout(() => setAlert(null), 300);
+  };
+
+  // Alert error otomatis hilang setelah 5 detik
+  useEffect(() => {
+    if (alert?.type !== 'error') return;
+    const t = setTimeout(closeAlert, 5000);
+    return () => clearTimeout(t);
+  }, [alert]);
+
   const handleLogin = async () => {
     if (!email || !password) {
       setAlert({ message: 'Nama/Email dan password wajib diisi!', type: 'error' });
@@ -51,17 +81,21 @@ export default function AdminLogin() {
     setAlert(null);
 
     try {
-      const apiUrl = 'https://s3-backend-seven.vercel.app/s3/api/auth/signin'; 
+      const apiUrl = 'https://s3-backend-seven.vercel.app/s3/api/auth/signin';
 
-      const response = await axios.post<LoginResponse>(apiUrl, {
-        email, // Backend menangkap key 'email' untuk input nama ataupun email
-        password,
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
+      const response = await axios.post<LoginResponse>(
+        apiUrl,
+        {
+          email, // Backend menangkap key 'email' untuk input nama ataupun email
+          password,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
         }
-      });
+      );
 
       const data = response.data;
       // PERBAIKAN: default 'admin' diganti ke 'karyawan' (role paling rendah).
@@ -98,11 +132,11 @@ export default function AdminLogin() {
       setTimeout(() => {
         window.location.href = '/s3/Dashboard';
       }, 1500);
-
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         const serverError = err.response?.data as ApiErrorResponse;
-        const errorMessage = serverError?.message || err.message || 'Terjadi kesalahan pada jaringan atau server.';
+        const errorMessage =
+          serverError?.message || err.message || 'Terjadi kesalahan pada jaringan atau server.';
         setAlert({ message: errorMessage, type: 'error' });
       } else if (err instanceof Error) {
         setAlert({ message: err.message, type: 'error' });
@@ -115,57 +149,85 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="bg-black text-white font-sans antialiased flex items-center justify-center min-h-screen selection:bg-red-600 selection:text-white">
+    <div className="bg-black text-white font-sans antialiased flex items-center justify-center min-h-screen overflow-hidden selection:bg-red-600 selection:text-white">
+      {/* Toast Alert: muncul dari kanan atas, slide ke kiri */}
+      {alert && (
+        <div
+          role="alert"
+          className={`fixed top-4 right-4 z-50 w-[calc(100%-2rem)] max-w-xs flex items-start gap-3 p-3 text-xs rounded-xl border shadow-2xl backdrop-blur transform transition-all duration-300 ease-out ${
+            alertVisible ? 'translate-x-0 opacity-100' : 'translate-x-[120%] opacity-0'
+          } ${
+            alert.type === 'success'
+              ? 'bg-emerald-950/90 border-emerald-800 text-emerald-200'
+              : 'bg-red-950/90 border-red-800 text-red-200'
+          }`}
+        >
+          <span className="flex-1 leading-relaxed">{alert.message}</span>
+          <button
+            type="button"
+            onClick={closeAlert}
+            aria-label="Tutup"
+            className="text-current opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       <div className="w-full max-w-sm p-6 mx-4 bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl relative overflow-hidden">
-        
         {/* Aksen Garis Merah di Bagian Atas Card */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-600 via-red-500 to-red-700"></div>
 
         {/* Header / Logo & Judul */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-14 h-14 bg-zinc-900 border border-zinc-800 rounded-xl mb-3 shadow-inner text-red-600">
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              className="w-7 h-7" 
-              fill="none" 
-              viewBox="0 0 24 24" 
-              stroke="currentColor" 
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="w-7 h-7"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
               strokeWidth="2"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+              />
             </svg>
           </div>
           <h1 className="text-xl font-bold tracking-tight text-white">Dashboard Admin</h1>
           <p className="text-xs text-zinc-400 mt-1">Silakan masuk menggunakan Nama atau Email Anda</p>
         </div>
 
-        {/* Alert Pesan Error/Sukses */}
-        {alert && (
-          <div className={`mb-4 p-3 text-xs rounded-xl border transition-all ${
-            alert.type === 'success' 
-              ? 'bg-emerald-950/50 border-emerald-800 text-emerald-200' 
-              : 'bg-red-950/50 border-red-800 text-red-200'
-          }`}>
-            {alert.message}
-          </div>
-        )}
-
         {/* Form Container */}
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-1.5" htmlFor="email">
+            <label
+              className="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-1.5"
+              htmlFor="email"
+            >
               Nama atau Email
             </label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-zinc-500">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" /></svg>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"
+                  />
+                </svg>
               </span>
-              <input 
-                type="text" 
-                id="email" 
+              <input
+                type="text"
+                id="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2.5 pl-10 pr-3 text-white text-xs focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-zinc-600" 
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2.5 pl-10 pr-3 text-white text-xs focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-zinc-600"
                 placeholder="Masukkan nama atau email"
               />
             </div>
@@ -173,7 +235,10 @@ export default function AdminLogin() {
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-300" htmlFor="password">
+              <label
+                className="block text-xs font-semibold uppercase tracking-wider text-zinc-300"
+                htmlFor="password"
+              >
                 Password
               </label>
               <a href="#forgot" className="text-xs text-zinc-400 hover:text-red-500 transition-colors">
@@ -182,22 +247,29 @@ export default function AdminLogin() {
             </div>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-zinc-500">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                  />
+                </svg>
               </span>
-              <input 
-                type="password" 
-                id="password" 
+              <input
+                type="password"
+                id="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2.5 pl-10 pr-3 text-white text-xs focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-zinc-600" 
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2.5 pl-10 pr-3 text-white text-xs focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-zinc-600"
                 placeholder="••••••••"
               />
             </div>
           </div>
 
           {/* Tombol Eksekusi API */}
-          <button 
-            type="button" 
+          <button
+            type="button"
             onClick={handleLogin}
             disabled={isLoading}
             className={`w-full bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-medium py-2.5 rounded-xl transition-all shadow-lg shadow-red-900/20 flex items-center justify-center gap-2 text-xs cursor-pointer ${
@@ -206,9 +278,18 @@ export default function AdminLogin() {
           >
             {isLoading ? (
               <>
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg
+                  className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
                 </svg>
                 <span>Memproses...</span>
               </>
