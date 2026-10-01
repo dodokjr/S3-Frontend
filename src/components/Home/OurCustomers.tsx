@@ -1,38 +1,73 @@
-import { useState, useMemo } from 'react'
-import { FaBuilding, FaSearch, FaHandshake } from 'react-icons/fa'
+import { useState, useMemo, useEffect } from 'react'
+import { FaBuilding, FaSearch, FaHandshake, FaExternalLinkAlt } from 'react-icons/fa'
 
-// Import/substitusi Logo Customer
-import KubotaLogo from '../../assets/LogoS3.svg'
-import PolytronLogo from '../../assets/LogoS3.svg'
-import AptivLogo from '../../assets/LogoS3.svg'
-import YasaLogo from '../../assets/LogoS3.svg'
-import KaroseriLogo from '../../assets/LogoS3.svg'
-import SantosAjiLogo from '../../assets/LogoS3.svg'
-import SantosJayaLogo from '../../assets/LogoS3.svg'
-import SasakuraLogo from '../../assets/LogoS3.svg'
-import CosmeticMirrorLogo from '../../assets/LogoS3.svg'
-import GeomedLogo from '../../assets/LogoS3.svg'
-import PgasLogo from '../../assets/LogoS3.svg'
-import AlbaLogo from '../../assets/LogoS3.svg'
+// Logo cadangan jika gambar dari API gagal dimuat
+import FallbackLogo from '../../assets/LogoS3.svg'
+
+const API_URL = 'https://s3-backend-seven.vercel.app/s3/api/cust'
+
+// API hanya mengirim id, name, image, website.
+// Kategori & lokasi disimpan lokal berdasarkan id (hapus jika nanti API sudah menyediakannya).
+const CUSTOMER_META = {
+  1: { category: 'Manufacture & Machinery', location: 'Semarang' },
+  2: { category: 'Electronics & Appliances', location: 'Kudus' },
+  3: { category: 'Shipbuilding & Marine', location: 'Semarang' },
+  4: { category: 'Automotive Components', location: 'Semarang' },
+  5: { category: 'Automotive & Bodybuilder', location: 'Jawa Tengah' },
+  6: { category: 'Industrial Supplier', location: 'Jawa Tengah' },
+  7: { category: 'Industrial Engineering', location: 'Jawa Tengah' },
+  8: { category: 'Glass Manufacture', location: 'Jawa Tengah' },
+  9: { category: 'Food & Beverage', location: 'Semarang' },
+  10: { category: 'Energy & Infrastructure', location: 'Indonesia' },
+  11: { category: 'Medical Devices', location: 'Jawa Tengah' },
+  12: { category: 'Recycling & Sustainability', location: 'Jawa Tengah' }
+}
+
+const DEFAULT_META = { category: 'Lainnya', location: 'Indonesia' }
 
 export default function OurCustomers() {
+  const [customerData, setCustomerData] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
+
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('Semua')
 
-  const customerData = [
-    { name: 'PT Kubota Indonesia', logo: KubotaLogo, category: 'Manufacture & Machinery', location: 'Semarang' },
-    { name: 'PT Hartono Istana Teknologi (Polytron)', logo: PolytronLogo, category: 'Electronics & Appliances', location: 'Kudus' },
-    { name: 'PT Aptiv Component Indonesia', logo: AptivLogo, category: 'Automotive Components', location: 'Semarang' },
-    { name: 'PT Yasa Wahana Tirta Samudra', logo: YasaLogo, category: 'Shipbuilding & Marine', location: 'Semarang' },
-    { name: 'PT Karoseri Anak Bangsa', logo: KaroseriLogo, category: 'Automotive & Bodybuilder', location: 'Jawa Tengah' },
-    { name: 'PT Sumber Aji Langgeng Santoso', logo: SantosAjiLogo, category: 'Industrial Supplier', location: 'Jawa Tengah' },
-    { name: 'PT Santos Jaya Abadi', logo: SantosJayaLogo, category: 'Food & Beverage', location: 'Semarang' },
-    { name: 'PT Sasakura Indonesia', logo: SasakuraLogo, category: 'Industrial Engineering', location: 'Jawa Tengah' },
-    { name: 'PT Cosmetic Mirror Indonesia', logo: CosmeticMirrorLogo, category: 'Glass Manufacture', location: 'Jawa Tengah' },
-    { name: 'PT Geomed Indonesia', logo: GeomedLogo, category: 'Medical Devices', location: 'Jawa Tengah' },
-    { name: 'PT PGAS Solution', logo: PgasLogo, category: 'Energy & Infrastructure', location: 'Indonesia' },
-    { name: 'PT Alba Tridi Plastics Recycling', logo: AlbaLogo, category: 'Recycling & Sustainability', location: 'Jawa Tengah' }
-  ]
+  // Ambil data dari API
+  useEffect(() => {
+    const controller = new AbortController()
+
+    async function fetchCustomers() {
+      setLoading(true)
+      setError('')
+      try {
+        const res = await fetch(API_URL, { signal: controller.signal })
+        if (!res.ok) throw new Error(`Gagal memuat data (HTTP ${res.status})`)
+
+        const json = await res.json()
+        if (!json.success || !Array.isArray(json.data)) {
+          throw new Error('Format respons API tidak sesuai')
+        }
+
+        // Gabungkan data API dengan kategori & lokasi lokal
+        const merged = json.data.map((item) => ({
+          ...item,
+          ...(CUSTOMER_META[item.id] || DEFAULT_META)
+        }))
+        setCustomerData(merged)
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          setError(err.message || 'Terjadi kesalahan saat memuat data')
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false)
+      }
+    }
+
+    fetchCustomers()
+    return () => controller.abort()
+  }, [reloadKey])
 
   // Ambil daftar kategori unik secara otomatis
   const categories = useMemo(() => {
@@ -51,14 +86,16 @@ export default function OurCustomers() {
   return (
     <section className="bg-white py-12 sm:py-16 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-7xl mx-auto space-y-8">
-        
+
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-gray-100 pb-8">
-          
+
           {/* Quick Highlight Stats (Kiri) */}
           <div className="flex items-center gap-6 bg-gray-50 p-4 rounded-2xl border border-gray-100 self-start order-2 md:order-1">
             <div>
-              <p className="text-2xl font-black text-black">12+</p>
+              <p className="text-2xl font-black text-black">
+                {loading ? '–' : `${customerData.length}+`}
+              </p>
               <p className="text-[11px] font-semibold text-gray-500 uppercase">Mitra Utama</p>
             </div>
             <div className="h-8 w-px bg-gray-200" />
@@ -79,7 +116,7 @@ export default function OurCustomers() {
               <h2 className="text-3xl sm:text-4xl font-black text-black tracking-tight uppercase">
                 Klien & Mitra Kami
               </h2>
-              
+
               {/* Garis Bawah Interaktif */}
               <span className="block h-[4px] w-full bg-black rounded-full transition-all duration-300 group-hover:bg-red-600 relative overflow-hidden mt-1">
                 <span className="absolute inset-0 w-0 bg-white group-hover:w-full transition-all duration-500 opacity-50" />
@@ -104,7 +141,8 @@ export default function OurCustomers() {
                 placeholder="Cari perusahaan..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:bg-white focus:outline-none focus:border-red-600 transition-all"
+                disabled={loading || !!error}
+                className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:bg-white focus:outline-none focus:border-red-600 transition-all disabled:opacity-60"
               />
             </div>
 
@@ -116,9 +154,9 @@ export default function OurCustomers() {
 
           {/* Category Chips Scrollable */}
           <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-            {categories.map((cat, idx) => (
+            {categories.map((cat) => (
               <button
-                key={idx}
+                key={cat}
                 onClick={() => setSelectedCategory(cat)}
                 className={`text-xs px-3.5 py-2 rounded-xl font-semibold whitespace-nowrap transition-all ${
                   selectedCategory === cat
@@ -134,35 +172,77 @@ export default function OurCustomers() {
 
         {/* Compact Customers Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {filteredCustomers.length > 0 ? (
-            filteredCustomers.map((customer, index) => (
+          {loading ? (
+            // Skeleton saat loading
+            Array.from({ length: 8 }).map((_, i) => (
               <div
-                key={index}
-                className="group bg-white rounded-2xl border border-gray-100 hover:border-red-600 p-4 flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 shadow-xs hover:shadow-md"
+                key={i}
+                className="bg-white rounded-2xl border border-gray-100 p-4 animate-pulse"
               >
-                {/* Logo Box */}
-                <div className="w-full h-24 bg-gray-50 group-hover:bg-red-50/20 rounded-xl p-3 flex items-center justify-center transition-colors mb-3 border border-gray-100/50">
-                  <img
-                    src={customer.logo}
-                    alt={customer.name}
-                    className="max-h-full max-w-full object-contain filter grayscale group-hover:grayscale-0 transition-all duration-300"
-                  />
-                </div>
-
-                {/* Information Area */}
-                <div className="space-y-1">
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-red-600 bg-red-50 px-2 py-0.5 rounded">
-                    {customer.category}
-                  </span>
-                  <h3 className="text-xs font-bold text-black group-hover:text-red-600 transition-colors line-clamp-1 mt-1">
-                    {customer.name}
-                  </h3>
-                  <p className="text-[10px] text-gray-400 flex items-center gap-1 font-medium">
-                    <FaBuilding className="text-[9px]" /> {customer.location}
-                  </p>
-                </div>
+                <div className="w-full h-24 bg-gray-100 rounded-xl mb-3" />
+                <div className="h-3 w-16 bg-gray-100 rounded mb-2" />
+                <div className="h-3 w-3/4 bg-gray-100 rounded mb-2" />
+                <div className="h-2.5 w-1/3 bg-gray-100 rounded" />
               </div>
             ))
+          ) : error ? (
+            <div className="col-span-full text-center py-12 bg-red-50/40 rounded-2xl border border-dashed border-red-200">
+              <p className="text-xs font-bold text-red-600">Gagal memuat data perusahaan.</p>
+              <p className="text-[11px] text-gray-500 mt-1">{error}</p>
+              <button
+                onClick={() => setReloadKey((k) => k + 1)}
+                className="mt-4 bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all active:scale-95"
+              >
+                Coba Lagi
+              </button>
+            </div>
+          ) : filteredCustomers.length > 0 ? (
+            filteredCustomers.map((customer) => {
+              const CardTag = customer.website ? 'a' : 'div'
+              const linkProps = customer.website
+                ? { href: customer.website, target: '_blank', rel: 'noopener noreferrer' }
+                : {}
+
+              return (
+                <CardTag
+                  key={customer.id}
+                  {...linkProps}
+                  className="group bg-white rounded-2xl border border-gray-100 hover:border-red-600 p-4 flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 shadow-xs hover:shadow-md"
+                >
+                  {/* Logo Box */}
+                  <div className="w-full h-24 bg-gray-50 group-hover:bg-red-50/20 rounded-xl p-3 flex items-center justify-center transition-colors mb-3 border border-gray-100/50">
+                    <img
+                      src={customer.image}
+                      alt={customer.name}
+                      loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null
+                        e.currentTarget.src = FallbackLogo
+                      }}
+                      className="max-h-16 max-w-16 object-contain filter grayscale group-hover:grayscale-0 transition-all duration-300"
+                    />
+                  </div>
+
+                  {/* Information Area */}
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-red-600 bg-red-50 px-2 py-0.5 rounded">
+                      {customer.category}
+                    </span>
+                    <h3 className="text-xs font-bold text-black group-hover:text-red-600 transition-colors line-clamp-1 mt-1">
+                      {customer.name}
+                    </h3>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] text-gray-400 flex items-center gap-1 font-medium">
+                        <FaBuilding className="text-[9px]" /> {customer.location}
+                      </p>
+                      {customer.website && (
+                        <FaExternalLinkAlt className="text-[9px] text-gray-300 group-hover:text-red-600 transition-colors" />
+                      )}
+                    </div>
+                  </div>
+                </CardTag>
+              )
+            })
           ) : (
             <div className="col-span-full text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
               <p className="text-xs font-bold text-gray-500">Perusahaan tidak ditemukan.</p>

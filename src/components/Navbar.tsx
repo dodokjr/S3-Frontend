@@ -20,14 +20,31 @@ const navLinks = [
 // supaya bagian atas section tidak ketutup navbar yang fixed.
 const SCROLL_OFFSET = 96
 
-export default function Navbar() {
+interface NavbarProps {
+  // Dipanggil saat form pencarian di-submit. Sambungkan ke logika pencarian yang sesungguhnya.
+  onSearch?: (query: string) => void
+}
+
+export default function Navbar({ onSearch }: NavbarProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const [activeSection, setActiveSection] = useState('home')
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const tickingRef = useRef(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
-  const toggleMenu = () => setIsOpen((prev) => !prev)
+  const toggleMenu = () => {
+    setIsOpen((prev) => !prev)
+    setIsSearchOpen(false)
+  }
   const closeMenu = () => setIsOpen(false)
+
+  const toggleSearch = () => {
+    setIsSearchOpen((prev) => !prev)
+    setIsOpen(false)
+  }
+  const closeSearch = () => setIsSearchOpen(false)
 
   useEffect(() => {
     const updateScrollState = () => {
@@ -80,12 +97,34 @@ export default function Navbar() {
     activeSectionRef.current = activeSection
   }, [activeSection])
 
+  // Saat form pencarian terbuka: fokuskan input & izinkan tutup dengan tombol Escape
+  useEffect(() => {
+    if (!isSearchOpen) return
+
+    // Tunggu animasi buka selesai (300ms) baru fokus, dan cegah browser menggeser scroll
+    const focusTimer = setTimeout(
+      () => searchInputRef.current?.focus({ preventScroll: true }),
+      300
+    )
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsSearchOpen(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      clearTimeout(focusTimer)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isSearchOpen])
+
   const handleNavClick = (
     e: React.MouseEvent<HTMLAnchorElement>,
     targetSelector: string
   ) => {
     e.preventDefault()
     closeMenu()
+    closeSearch()
 
     const targetElement = document.querySelector<HTMLElement>(targetSelector)
     if (targetElement) {
@@ -95,9 +134,20 @@ export default function Navbar() {
     }
   }
 
-  const handleSearchClick = () => {
+  const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const query = searchQuery.trim()
+    if (!query) {
+      searchInputRef.current?.focus()
+      return
+    }
+
     // TODO: sambungkan ke logika/komponen pencarian yang sesungguhnya
-    console.log('Search clicked')
+    if (onSearch) {
+      onSearch(query)
+    } else {
+      console.log('Search:', query)
+    }
   }
 
   return (
@@ -195,15 +245,35 @@ export default function Navbar() {
             })}
           </nav>
 
+          {/* Desktop Search Button */}
+          <div className="hidden md:flex items-center">
+            <button
+              type="button"
+              aria-label={isSearchOpen ? 'Tutup pencarian' : 'Buka pencarian'}
+              aria-expanded={isSearchOpen}
+              aria-controls="navbar-search"
+              onClick={toggleSearch}
+              className={`p-2.5 rounded-lg transition-colors ${
+                isSearchOpen ? 'bg-red-600 text-white' : 'text-white hover:bg-white/10'
+              }`}
+            >
+              {isSearchOpen ? <HiX className="text-lg" /> : <FaMagnifyingGlass className="text-base" />}
+            </button>
+          </div>
+
           {/* Mobile Hamburger & Search */}
           <div className="flex md:hidden items-center space-x-2">
             <button
               type="button"
-              aria-label="Search"
-              onClick={handleSearchClick}
-              className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
+              aria-label={isSearchOpen ? 'Tutup pencarian' : 'Buka pencarian'}
+              aria-expanded={isSearchOpen}
+              aria-controls="navbar-search"
+              onClick={toggleSearch}
+              className={`p-2 rounded-lg transition-colors ${
+                isSearchOpen ? 'bg-red-600 text-white' : 'text-white hover:bg-white/10'
+              }`}
             >
-              <FaMagnifyingGlass className="text-base" />
+              {isSearchOpen ? <HiX className="text-xl" /> : <FaMagnifyingGlass className="text-base" />}
             </button>
 
             <button
@@ -219,30 +289,84 @@ export default function Navbar() {
 
         </div>
 
-        {/* 3. MOBILE MENU DROPDOWN */}
+        {/* 3. SEARCH FORM DROPDOWN */}
+        {/* Tinggi dianimasikan lewat grid-rows (0fr -> 1fr) supaya mulus tanpa tebak-tebakan max-height */}
         <div
-          className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${
-            isOpen ? 'max-h-80 opacity-100 py-4 border-t border-white/10' : 'max-h-0 opacity-0 py-0'
-          } ${scrolled ? 'bg-slate-900/95 backdrop-blur-lg' : 'bg-black/90 backdrop-blur-lg'}`}
+          id="navbar-search"
+          aria-hidden={!isSearchOpen}
+          className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${
+            isSearchOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+          } ${scrolled ? 'bg-slate-900/95' : 'bg-black/90'}`}
         >
-          <div className="flex flex-col space-y-2 px-6">
-            {navLinks.map((link) => {
-              const isActive = activeSection === link.id
-              return (
-                <a
-                  key={link.id}
-                  href={link.href}
-                  onClick={(e) => handleNavClick(e, link.href)}
-                  className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
-                    isActive
-                      ? 'bg-red-600 text-white font-bold shadow-md'
-                      : 'text-gray-200 hover:bg-white/10 hover:text-white'
-                  }`}
+          <div className="min-h-0 overflow-hidden">
+            <div className="border-t border-white/10 py-3">
+              <form
+                role="search"
+                onSubmit={handleSearchSubmit}
+                className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-2 transition-transform duration-300 ease-out motion-reduce:transition-none ${
+                  isSearchOpen ? 'translate-y-0' : '-translate-y-2'
+                }`}
+              >
+                <div className="relative flex-1">
+                  <FaMagnifyingGlass className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none" />
+                  <input
+                    ref={searchInputRef}
+                    type="search"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Cari produk, brand, atau perusahaan..."
+                    aria-label="Kata kunci pencarian"
+                    tabIndex={isSearchOpen ? 0 : -1}
+                    className="w-full pl-9 pr-4 py-2.5 bg-white/10 border border-white/20 rounded-xl text-sm text-white placeholder-gray-400 focus:bg-white/15 focus:outline-none focus:border-red-500 transition-colors"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  tabIndex={isSearchOpen ? 0 : -1}
+                  className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-colors active:scale-95"
                 >
-                  {link.name}
-                </a>
-              )
-            })}
+                  Cari
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        {/* 4. MOBILE MENU DROPDOWN */}
+        <div
+          aria-hidden={!isOpen}
+          className={`md:hidden grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${
+            isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+          } ${scrolled ? 'bg-slate-900/95' : 'bg-black/90'}`}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <div className="border-t border-white/10 py-4">
+              <div
+                className={`flex flex-col space-y-2 px-6 transition-transform duration-300 ease-out motion-reduce:transition-none ${
+                  isOpen ? 'translate-y-0' : '-translate-y-2'
+                }`}
+              >
+                {navLinks.map((link) => {
+                  const isActive = activeSection === link.id
+                  return (
+                    <a
+                      key={link.id}
+                      href={link.href}
+                      tabIndex={isOpen ? 0 : -1}
+                      onClick={(e) => handleNavClick(e, link.href)}
+                      className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-colors duration-300 ${
+                        isActive
+                          ? 'bg-red-600 text-white font-bold shadow-md'
+                          : 'text-gray-200 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      {link.name}
+                    </a>
+                  )
+                })}
+              </div>
+            </div>
           </div>
         </div>
       </header>
