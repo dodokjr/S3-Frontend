@@ -6,9 +6,23 @@ import FallbackLogo from '../../assets/LogoS3.svg'
 
 const API_URL = 'https://s3-backend-seven.vercel.app/s3/api/cust'
 
+// Bentuk data mentah dari API
+interface CustomerApi {
+  id: number
+  name: string
+  image: string
+  website?: string
+}
+
+// Bentuk data yang dipakai komponen (API + kategori & lokasi lokal)
+interface Customer extends CustomerApi {
+  category: string
+  location: string
+}
+
 // API hanya mengirim id, name, image, website.
 // Kategori & lokasi disimpan lokal berdasarkan id (hapus jika nanti API sudah menyediakannya).
-const CUSTOMER_META = {
+const CUSTOMER_META: Record<number, { category: string; location: string }> = {
   1: { category: 'Manufacture & Machinery', location: 'Semarang' },
   2: { category: 'Electronics & Appliances', location: 'Kudus' },
   3: { category: 'Shipbuilding & Marine', location: 'Semarang' },
@@ -26,7 +40,7 @@ const CUSTOMER_META = {
 const DEFAULT_META = { category: 'Lainnya', location: 'Indonesia' }
 
 export default function OurCustomers() {
-  const [customerData, setCustomerData] = useState([])
+  const [customerData, setCustomerData] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
@@ -51,14 +65,14 @@ export default function OurCustomers() {
         }
 
         // Gabungkan data API dengan kategori & lokasi lokal
-        const merged = json.data.map((item) => ({
+        const merged: Customer[] = (json.data as CustomerApi[]).map((item) => ({
           ...item,
           ...(CUSTOMER_META[item.id] || DEFAULT_META)
         }))
         setCustomerData(merged)
       } catch (err) {
-        if (err.name !== 'AbortError') {
-          setError(err.message || 'Terjadi kesalahan saat memuat data')
+        if ((err as Error).name !== 'AbortError') {
+          setError((err as Error).message || 'Terjadi kesalahan saat memuat data')
         }
       } finally {
         if (!controller.signal.aborted) setLoading(false)
@@ -198,17 +212,11 @@ export default function OurCustomers() {
             </div>
           ) : filteredCustomers.length > 0 ? (
             filteredCustomers.map((customer) => {
-              const CardTag = customer.website ? 'a' : 'div'
-              const linkProps = customer.website
-                ? { href: customer.website, target: '_blank', rel: 'noopener noreferrer' }
-                : {}
+              const cardClass =
+                'group bg-white rounded-2xl border border-gray-100 hover:border-red-600 p-4 flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 shadow-xs hover:shadow-md'
 
-              return (
-                <CardTag
-                  key={customer.id}
-                  {...linkProps}
-                  className="group bg-white rounded-2xl border border-gray-100 hover:border-red-600 p-4 flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 shadow-xs hover:shadow-md"
-                >
+              const cardContent = (
+                <>
                   {/* Logo Box */}
                   <div className="w-full h-24 bg-gray-50 group-hover:bg-red-50/20 rounded-xl p-3 flex items-center justify-center transition-colors mb-3 border border-gray-100/50">
                     <img
@@ -240,7 +248,24 @@ export default function OurCustomers() {
                       )}
                     </div>
                   </div>
-                </CardTag>
+                </>
+              )
+
+              // Kartu jadi link jika punya website, jika tidak hanya div biasa
+              return customer.website ? (
+                <a
+                  key={customer.id}
+                  href={customer.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cardClass}
+                >
+                  {cardContent}
+                </a>
+              ) : (
+                <div key={customer.id} className={cardClass}>
+                  {cardContent}
+                </div>
               )
             })
           ) : (
