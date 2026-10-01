@@ -1,39 +1,43 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 
-// ====== KONFIGURASI API (sesuaikan dengan backend kamu) ======
-// GET    {API_BASE}/users        -> daftar user (array, atau { users: [] } / { data: [] })
-// POST   {API_BASE}/users        -> tambah user
-// PUT    {API_BASE}/users/:id    -> update user (partial)
-// DELETE {API_BASE}/users/:id    -> hapus user
+// ====== KONFIGURASI API (sesuai backend routes.js) ======
+// GET    {API_BASE}/users   -> { success, data: [...] }   (password tidak dikirim server)
+// POST   {API_BASE}/users   -> body { name, email, password, role, is_login }
+// PUT    {API_BASE}/users   -> body { email, name?, password?, role?, is_login? }  (email = kunci user)
+// DELETE {API_BASE}/users   -> body { email }
 const API_BASE = 'https://s3-backend-seven.vercel.app/s3/api';
 const POLL_INTERVAL_MS = 10000; // sinkronisasi otomatis tiap 10 detik
+
+type UserStatus = 'TRUE' | 'FALSE';
 
 interface UserAccount {
   id: string | number;
   name: string;
   email: string;
   role: string;
-  password?: string;
-  status?: string; // 'TRUE' | 'FALSE'
+  status: UserStatus; // dipetakan dari kolom is_login di sheet
 }
 
 interface UsersTabProps {
   userRole: string;
 }
 
+// Urutan field form: name, password, email, role, status
 interface UserForm {
   name: string;
-  email: string;
   password: string;
+  email: string;
   role: string;
-  status: 'TRUE' | 'FALSE';
+  status: UserStatus;
 }
 
-// Daftar role yang sah di sistem, dipakai untuk saran input & dropdown ganti role.
-const AVAILABLE_ROLES = ['developer', 'semi dev', 'admin', 'karyawan', 'users'];
+// Role yang diterima backend (di luar daftar ini backend akan mengabaikannya).
+const AVAILABLE_ROLES = ['developer', 'admin', 'karyawan', 'sales', 'finance', 'gudang'];
+// Hanya role ini yang boleh tambah / edit / hapus / ganti role (sesuai allowDeveloperAndAdmin).
+const MANAGER_ROLES = ['developer', 'admin'];
 
-const EMPTY_FORM: UserForm = { name: '', email: '', password: '', role: 'karyawan', status: 'TRUE' };
+const EMPTY_FORM: UserForm = { name: '', password: '', email: '', role: 'karyawan', status: 'FALSE' };
 
 const api = axios.create({ baseURL: API_BASE, headers: { Accept: 'application/json' } });
 api.interceptors.request.use((config) => {
@@ -42,28 +46,51 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Backend bisa membalas array langsung atau dibungkus object; ratakan di sini.
-const normalizeUsers = (payload: unknown): UserAccount[] => {
-  if (Array.isArray(payload)) return payload as UserAccount[];
+type RawUser = Record<string, unknown>;
+
+const toStatus = (v: unknown): UserStatus => (String(v ?? '').trim().toUpperCase() === 'TRUE' ? 'TRUE' : 'FALSE');
+
+// Backend membalas { success, data: [...] }; array langsung / { users: [] } juga didukung.
+const extractList = (payload: unknown): RawUser[] => {
+  if (Array.isArray(payload)) return payload as RawUser[];
   if (payload && typeof payload === 'object') {
     const obj = payload as { users?: unknown; data?: unknown };
-    if (Array.isArray(obj.users)) return obj.users as UserAccount[];
-    if (Array.isArray(obj.data)) return obj.data as UserAccount[];
+    if (Array.isArray(obj.data)) return obj.data as RawUser[];
+    if (Array.isArray(obj.users)) return obj.users as RawUser[];
   }
   return [];
 };
 
+const normalizeUsers = (payload: unknown): UserAccount[] =>
+  extractList(payload)
+    .map((raw) => ({
+      id: (raw.id as string | number | undefined) ?? '',
+      name: String(raw.name ?? ''),
+      email: String(raw.email ?? ''),
+      role: String(raw.role ?? '').trim().toLowerCase(),
+      status: toStatus(raw.is_login ?? raw.status),
+    }))
+    .filter((u) => u.email !== '');
+
+const sameEmail = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
 const getErrorMessage = (err: unknown): string => {
   if (axios.isAxiosError(err)) {
-    const msg = (err.response?.data as { message?: string } | undefined)?.message;
-    return msg || err.message || 'Terjadi kesalahan pada jaringan atau server.';
+    if (!err.response) return 'Tidak dapat terhubung ke server. Periksa koneksi internet.';
+    const msg = (err.response.data as { message?: string } | undefined)?.message;
+    if (msg) return msg;
+    if (err.response.status === 401) return 'Sesi login berakhir. Silakan login ulang.';
+    if (err.response.status === 403) return 'Anda tidak punya akses untuk aksi ini.';
+    if (err.response.status === 429) return 'Terlalu banyak permintaan. Tunggu sebentar lalu coba lagi.';
+    return err.message || 'Terjadi kesalahan pada jaringan atau server.';
   }
   return err instanceof Error ? err.message : 'Terjadi kesalahan yang tidak diketahui.';
 };
 
 export default function UsersTab({ userRole }: UsersTabProps) {
-  const isDeveloper = userRole === 'developer';
-  const columnCount = isDeveloper ? 8 : 7;
+  const canManage = MANAGER_ROLES.includes((userRole || '').trim().toLowerCase());
+  // ID, Nama, Email, Role, Status (+ Ganti Role, Aksi untuk yang boleh mengelola)
+  const columnCount = canManage ? 7 : 5;
 
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -72,14 +99,16 @@ export default function UsersTab({ userRole }: UsersTabProps) {
   const [notice, setNotice] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const [form, setForm] = useState<UserForm>(EMPTY_FORM);
-  const [editingId, setEditingId] = useState<string | number | null>(null);
+  const [editingEmail, setEditingEmail] = useState<string | null>(null); // email = kunci user di backend
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [showFormPassword, setShowFormPassword] = useState<boolean>(false);
-  const [revealed, setRevealed] = useState<Set<string | number>>(new Set());
   const [search, setSearch] = useState<string>('');
 
   // Hitung mutasi yang sedang berjalan supaya polling tidak menimpa update optimistik.
   const pendingMutations = useRef<number>(0);
+  // Selalu simpan data terbaru supaya snapshot rollback akurat.
+  const usersRef = useRef<UserAccount[]>([]);
+  usersRef.current = users;
 
   const showNotice = (message: string, type: 'success' | 'error') => {
     setNotice({ message, type });
@@ -94,6 +123,8 @@ export default function UsersTab({ userRole }: UsersTabProps) {
   // ====== READ (realtime via polling) ======
   const fetchUsers = useCallback(async (silent = false) => {
     if (pendingMutations.current > 0) return;
+    // Hemat kuota: jangan polling saat tab sedang tidak dibuka
+    if (silent && typeof document !== 'undefined' && document.hidden) return;
     if (!silent) setIsSyncing(true);
     try {
       const res = await api.get('/users');
@@ -120,11 +151,8 @@ export default function UsersTab({ userRole }: UsersTabProps) {
     request: () => Promise<unknown>,
     successMessage: string
   ): Promise<boolean> => {
-    let snapshot: UserAccount[] = [];
-    setUsers((prev) => {
-      snapshot = prev;
-      return optimistic(prev);
-    });
+    const snapshot = usersRef.current;
+    setUsers(optimistic(snapshot));
     pendingMutations.current += 1;
     try {
       await request();
@@ -143,12 +171,13 @@ export default function UsersTab({ userRole }: UsersTabProps) {
   // ====== CREATE & UPDATE (form) ======
   const resetForm = () => {
     setForm(EMPTY_FORM);
-    setEditingId(null);
+    setEditingEmail(null);
     setShowFormPassword(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManage || isSubmitting) return;
 
     const name = form.name.trim();
     const email = form.email.trim();
@@ -158,85 +187,85 @@ export default function UsersTab({ userRole }: UsersTabProps) {
       showNotice('Nama, email, dan role wajib diisi!', 'error');
       return;
     }
-    if (editingId === null && !form.password) {
+    if (!AVAILABLE_ROLES.includes(role)) {
+      showNotice('Role tidak valid. Pilih salah satu dari daftar.', 'error');
+      return;
+    }
+    if (editingEmail === null && !form.password) {
       showNotice('Password wajib diisi untuk user baru!', 'error');
       return;
     }
-
-    setIsSubmitting(true);
-
-    if (editingId !== null) {
-      // UPDATE: password hanya dikirim kalau diisi (kosong = tidak diubah)
-      const payload: Partial<UserForm> = { name, email, role, status: form.status };
-      if (form.password) payload.password = form.password;
-
-      const ok = await runMutation(
-        (prev) =>
-          prev.map((u) =>
-            u.id === editingId
-              ? { ...u, name, email, role, status: form.status, ...(form.password ? { password: form.password } : {}) }
-              : u
-          ),
-        () => api.put(`/users/${editingId}`, payload),
-        'User berhasil diperbarui.'
-      );
-      if (ok) resetForm();
-    } else {
-      // CREATE
-      const payload = { name, email, password: form.password, role, status: form.status };
-      const tempId = `tmp-${Date.now()}`;
-
-      const ok = await runMutation(
-        (prev) => [...prev, { id: tempId, name, email, password: form.password, role, status: form.status }],
-        () => api.post('/users', payload),
-        'User baru berhasil ditambahkan.'
-      );
-      if (ok) resetForm();
+    if (editingEmail === null && users.some((u) => sameEmail(u.email, email))) {
+      showNotice('Email sudah terdaftar. Gunakan email lain.', 'error');
+      return;
     }
 
-    setIsSubmitting(false);
+    const isActive = form.status === 'TRUE';
+    setIsSubmitting(true);
+
+    try {
+      if (editingEmail !== null) {
+        // UPDATE: backend mencari user lewat email; password hanya dikirim kalau diisi
+        const payload: Record<string, unknown> = { email: editingEmail, name, role, is_login: isActive };
+        if (form.password) payload.password = form.password;
+
+        const ok = await runMutation(
+          (prev) =>
+            prev.map((u) => (sameEmail(u.email, editingEmail) ? { ...u, name, role, status: form.status } : u)),
+          () => api.put('/users', payload),
+          'User berhasil diperbarui.'
+        );
+        if (ok) resetForm();
+      } else {
+        // CREATE
+        const payload = { name, email, password: form.password, role, is_login: isActive };
+        const tempId = `tmp-${Date.now()}`;
+
+        const ok = await runMutation(
+          (prev) => [...prev, { id: tempId, name, email, role, status: form.status }],
+          () => api.post('/users', payload),
+          'User baru berhasil ditambahkan.'
+        );
+        if (ok) resetForm();
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleEdit = (usr: UserAccount) => {
-    setEditingId(usr.id);
+    setEditingEmail(usr.email);
     setForm({
       name: usr.name,
-      email: usr.email,
       password: '', // dikosongkan; isi hanya kalau ingin mengganti password
+      email: usr.email,
       role: usr.role,
-      status: usr.status === 'TRUE' ? 'TRUE' : 'FALSE',
+      status: usr.status,
     });
     setShowFormPassword(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // ====== UPDATE cepat: ganti role langsung dari tabel ======
-  const handleRoleChange = (targetId: string | number, newRole: string) => {
+  const handleRoleChange = (targetEmail: string, newRole: string) => {
+    if (!canManage) return;
     runMutation(
-      (prev) => prev.map((u) => (u.id === targetId ? { ...u, role: newRole } : u)),
-      () => api.put(`/users/${targetId}`, { role: newRole }),
+      (prev) => prev.map((u) => (sameEmail(u.email, targetEmail) ? { ...u, role: newRole } : u)),
+      () => api.put('/users', { email: targetEmail, role: newRole }),
       'Role berhasil diubah.'
     );
   };
 
   // ====== DELETE ======
   const handleDeleteUser = (usr: UserAccount) => {
+    if (!canManage) return;
     if (!window.confirm(`Hapus user "${usr.name}"? Tindakan ini tidak bisa dibatalkan.`)) return;
-    if (editingId === usr.id) resetForm();
+    if (editingEmail !== null && sameEmail(editingEmail, usr.email)) resetForm();
     runMutation(
-      (prev) => prev.filter((u) => u.id !== usr.id),
-      () => api.delete(`/users/${usr.id}`),
+      (prev) => prev.filter((u) => !sameEmail(u.email, usr.email)),
+      () => api.delete('/users', { data: { email: usr.email } }),
       'User berhasil dihapus.'
     );
-  };
-
-  const toggleReveal = (id: string | number) => {
-    setRevealed((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
   };
 
   const filteredUsers = useMemo(() => {
@@ -251,7 +280,7 @@ export default function UsersTab({ userRole }: UsersTabProps) {
   }, [users, search]);
 
   const inputClass =
-    'w-full bg-zinc-950 border border-zinc-800 rounded-xl py-2 px-3 text-white text-xs focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-zinc-600';
+    'w-full bg-zinc-950 border border-zinc-800 rounded-xl py-2 px-3 text-white text-xs focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all placeholder:text-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed';
 
   return (
     <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-6">
@@ -303,14 +332,14 @@ export default function UsersTab({ userRole }: UsersTabProps) {
         </div>
       )}
 
-      {/* Form Tambah / Edit User (Hanya Developer) */}
-      {isDeveloper && (
+      {/* Form Tambah / Edit User (Developer & Admin) */}
+      {canManage && (
         <form onSubmit={handleSubmit} className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold text-white uppercase tracking-wider">
-              {editingId !== null ? 'Edit User' : 'Tambah User Baru'}
+              {editingEmail !== null ? 'Edit User' : 'Tambah User Baru'}
             </h3>
-            {editingId !== null && (
+            {editingEmail !== null && (
               <button
                 type="button"
                 onClick={resetForm}
@@ -321,6 +350,7 @@ export default function UsersTab({ userRole }: UsersTabProps) {
             )}
           </div>
 
+          {/* Urutan field: name, password, email, role, status */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
             <div>
               <label htmlFor="user-name" className="block text-[10px] text-zinc-400 mb-1">
@@ -337,28 +367,14 @@ export default function UsersTab({ userRole }: UsersTabProps) {
             </div>
 
             <div>
-              <label htmlFor="user-email" className="block text-[10px] text-zinc-400 mb-1">
-                Email
-              </label>
-              <input
-                id="user-email"
-                type="email"
-                placeholder="email@contoh.com"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className={inputClass}
-              />
-            </div>
-
-            <div>
               <label htmlFor="user-password" className="block text-[10px] text-zinc-400 mb-1">
-                Password {editingId !== null && <span className="text-zinc-600">(kosongkan jika tidak diubah)</span>}
+                Password {editingEmail !== null && <span className="text-zinc-600">(kosongkan jika tidak diubah)</span>}
               </label>
               <div className="relative">
                 <input
                   id="user-password"
                   type={showFormPassword ? 'text' : 'password'}
-                  placeholder={editingId !== null ? 'Password baru' : '••••••••'}
+                  placeholder={editingEmail !== null ? 'Password baru' : '••••••••'}
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
                   autoComplete="new-password"
@@ -375,23 +391,36 @@ export default function UsersTab({ userRole }: UsersTabProps) {
             </div>
 
             <div>
+              <label htmlFor="user-email" className="block text-[10px] text-zinc-400 mb-1">
+                Email {editingEmail !== null && <span className="text-zinc-600">(tidak bisa diubah)</span>}
+              </label>
+              <input
+                id="user-email"
+                type="email"
+                placeholder="email@contoh.com"
+                value={form.email}
+                disabled={editingEmail !== null}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
               <label htmlFor="user-role" className="block text-[10px] text-zinc-400 mb-1">
                 Role
               </label>
-              <input
+              <select
                 id="user-role"
-                type="text"
-                list="role-suggestions"
-                placeholder="cth: supervisor"
                 value={form.role}
                 onChange={(e) => setForm({ ...form, role: e.target.value })}
                 className={inputClass}
-              />
-              <datalist id="role-suggestions">
+              >
                 {AVAILABLE_ROLES.map((r) => (
-                  <option key={r} value={r} />
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
                 ))}
-              </datalist>
+              </select>
             </div>
 
             <div>
@@ -401,7 +430,7 @@ export default function UsersTab({ userRole }: UsersTabProps) {
               <select
                 id="user-status"
                 value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value as 'TRUE' | 'FALSE' })}
+                onChange={(e) => setForm({ ...form, status: e.target.value as UserStatus })}
                 className={inputClass}
               >
                 <option value="TRUE">TRUE (aktif)</option>
@@ -415,7 +444,7 @@ export default function UsersTab({ userRole }: UsersTabProps) {
             disabled={isSubmitting}
             className="bg-red-600 hover:bg-red-700 text-white text-xs font-medium px-4 py-2 rounded-xl transition-all shadow-lg cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? 'Menyimpan...' : editingId !== null ? 'Simpan Perubahan' : 'Tambahkan User'}
+            {isSubmitting ? 'Menyimpan...' : editingEmail !== null ? 'Simpan Perubahan' : 'Tambahkan User'}
           </button>
         </form>
       )}
@@ -429,7 +458,7 @@ export default function UsersTab({ userRole }: UsersTabProps) {
         className={`${inputClass} md:max-w-xs`}
       />
 
-      {/* Tabel Daftar Pengguna */}
+      {/* Tabel Daftar Pengguna (password tidak ditampilkan; server memang tidak mengirimnya) */}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs text-zinc-300">
           <thead className="bg-zinc-900 text-zinc-400 uppercase tracking-wider border-b border-zinc-800">
@@ -437,11 +466,10 @@ export default function UsersTab({ userRole }: UsersTabProps) {
               <th className="py-3 px-4">ID</th>
               <th className="py-3 px-4">Nama</th>
               <th className="py-3 px-4">Email</th>
-              <th className="py-3 px-4">Password</th>
               <th className="py-3 px-4">Role</th>
               <th className="py-3 px-4">Status</th>
-              <th className="py-3 px-4">Ganti Role</th>
-              {isDeveloper && <th className="py-3 px-4">Aksi</th>}
+              {canManage && <th className="py-3 px-4">Ganti Role</th>}
+              {canManage && <th className="py-3 px-4">Aksi</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800/60">
@@ -457,36 +485,17 @@ export default function UsersTab({ userRole }: UsersTabProps) {
                   ? AVAILABLE_ROLES
                   : [...AVAILABLE_ROLES, usr.role];
                 const isTemp = String(usr.id).startsWith('tmp-');
-                const isRevealed = revealed.has(usr.id);
 
                 return (
                   <tr
-                    key={usr.id}
+                    key={`${usr.email}-${usr.id}`}
                     className={`hover:bg-zinc-900/40 transition-colors ${isTemp ? 'opacity-60' : ''} ${
-                      editingId === usr.id ? 'bg-zinc-900/60' : ''
+                      editingEmail !== null && sameEmail(editingEmail, usr.email) ? 'bg-zinc-900/60' : ''
                     }`}
                   >
                     <td className="py-3 px-4 text-zinc-400">{isTemp ? '...' : usr.id}</td>
                     <td className="py-3 px-4 font-medium text-white">{usr.name}</td>
                     <td className="py-3 px-4 text-zinc-400">{usr.email}</td>
-                    <td className="py-3 px-4">
-                      {usr.password ? (
-                        <span className="inline-flex items-center gap-2">
-                          <span className="font-mono text-zinc-400 max-w-[140px] truncate">
-                            {isRevealed ? usr.password : '••••••••'}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => toggleReveal(usr.id)}
-                            className="text-[10px] text-zinc-500 hover:text-red-500 cursor-pointer"
-                          >
-                            {isRevealed ? 'Sembunyi' : 'Lihat'}
-                          </button>
-                        </span>
-                      ) : (
-                        <span className="text-zinc-600">-</span>
-                      )}
-                    </td>
                     <td className="py-3 px-4 uppercase font-semibold text-red-500">{usr.role}</td>
                     <td className="py-3 px-4">
                       <span
@@ -496,24 +505,26 @@ export default function UsersTab({ userRole }: UsersTabProps) {
                             : 'bg-red-950 text-red-400 border border-red-800'
                         }`}
                       >
-                        {usr.status || 'FALSE'}
+                        {usr.status}
                       </span>
                     </td>
-                    <td className="py-3 px-4">
-                      <select
-                        value={usr.role}
-                        disabled={isTemp}
-                        onChange={(e) => handleRoleChange(usr.id, e.target.value)}
-                        className="bg-zinc-900 border border-zinc-800 rounded-lg py-1 px-2 text-white text-xs focus:outline-none focus:border-red-600 disabled:opacity-50"
-                      >
-                        {roleOptions.map((roleOption) => (
-                          <option key={roleOption} value={roleOption}>
-                            {roleOption}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    {isDeveloper && (
+                    {canManage && (
+                      <td className="py-3 px-4">
+                        <select
+                          value={usr.role}
+                          disabled={isTemp}
+                          onChange={(e) => handleRoleChange(usr.email, e.target.value)}
+                          className="bg-zinc-900 border border-zinc-800 rounded-lg py-1 px-2 text-white text-xs focus:outline-none focus:border-red-600 disabled:opacity-50"
+                        >
+                          {roleOptions.map((roleOption) => (
+                            <option key={roleOption} value={roleOption}>
+                              {roleOption}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                    )}
+                    {canManage && (
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
                           <button
@@ -541,7 +552,11 @@ export default function UsersTab({ userRole }: UsersTabProps) {
             ) : (
               <tr>
                 <td colSpan={columnCount} className="py-6 text-center text-zinc-500">
-                  {search ? 'Tidak ada pengguna yang cocok dengan pencarian.' : 'Belum ada pengguna. Tambahkan lewat form di atas.'}
+                  {search
+                    ? 'Tidak ada pengguna yang cocok dengan pencarian.'
+                    : canManage
+                      ? 'Belum ada pengguna. Tambahkan lewat form di atas.'
+                      : 'Belum ada data pengguna.'}
                 </td>
               </tr>
             )}

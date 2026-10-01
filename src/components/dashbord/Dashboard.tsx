@@ -187,7 +187,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="bg-black text-white font-sans antialiased min-h-screen p-6 selection:bg-red-600 selection:text-white relative overflow-x-hidden">
+    <div className="bg-black text-white font-sans antialiased min-h-screen p-6 selection:bg-red-600 selection:text-white relative overflow-x-hidden flex flex-col">
       <div className="fixed top-6 right-6 z-50 pointer-events-none" aria-live="polite">
         {notification && (
           <div className="transform translate-x-0 opacity-100 transition-all duration-300 ease-out">
@@ -211,7 +211,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto space-y-6 flex-1 w-full">
         <DashboardHeader
           isViewOnly={isViewOnly}
           userRole={userRole}
@@ -345,6 +345,16 @@ export default function Dashboard() {
           <DeveloperTab userRole={userRole} getAuthHeaders={getAuthHeaders} />
         )}
       </div>
+
+      <footer className="max-w-5xl mx-auto w-full mt-8 pt-4 border-t border-zinc-800 flex flex-wrap items-center justify-between gap-2 text-[10px] text-zinc-500">
+        <p>© {new Date().getFullYear()} S3 dan <a href='https://mfikria.me' target='_blank'>Mfikria.me</a>. Seluruh hak cipta dilindungi.</p>
+        <p className="flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+          {isViewOnly
+            ? 'Mode lihat saja'
+            : `Masuk sebagai ${userName}${userRole ? ` (${userRole})` : ''}`}
+        </p>
+      </footer>
 
       <LogoutModal
         isOpen={showLogoutModal}

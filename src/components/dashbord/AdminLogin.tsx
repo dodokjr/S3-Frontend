@@ -301,7 +301,7 @@ export default function AdminLogin() {
 
         {/* Footer / Copyright */}
         <div className="mt-6 text-center text-[10px] text-zinc-500">
-          &copy; {new Date().getFullYear()} Admin Panel. All rights reserved.
+          &copy; {new Date().getFullYear()} S3 And Mfikria. All rights reserved.
         </div>
       </div>
     </div>
