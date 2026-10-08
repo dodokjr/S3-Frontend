@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { FaPaperPlane } from 'react-icons/fa'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { FaCheckCircle, FaExclamationCircle, FaGripLines, FaPaperPlane } from 'react-icons/fa'
 import { HiX } from 'react-icons/hi'
 
 export interface MessageData {
@@ -57,6 +57,21 @@ const getToken = () => {
   return ''
 }
 
+interface Position {
+  x: number
+  y: number
+}
+
+// Alert di tengah layar setelah kirim pesan
+interface NoticeState {
+  type: 'success' | 'error'
+  title: string
+  text: string
+}
+
+// Alert sukses menutup sendiri setelah beberapa detik; alert gagal menunggu ditutup manual
+const SUCCESS_NOTICE_MS = 2500
+
 export default function MessageModal({ isOpen, onClose, onSendMessage }: MessageModalProps) {
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
@@ -65,9 +80,58 @@ export default function MessageModal({ isOpen, onClose, onSendMessage }: Message
   const [message, setMessage] = useState('')
   const [messageTouched, setMessageTouched] = useState(false)
   const [isSending, setIsSending] = useState(false)
-  const [errorMessage, setErrorMessage] = useState('')
+  const [notice, setNotice] = useState<NoticeState | null>(null)
+  const noticeRef = useRef<NoticeState | null>(null)
+  const noticeButtonRef = useRef<HTMLButtonElement>(null)
   const tagInputRef = useRef<HTMLInputElement>(null)
   const messageRef = useRef<HTMLTextAreaElement>(null)
+
+  // ===== Geser modal (drag) =====
+  // pos = selisih posisi dari tengah layar (0,0 = di tengah)
+  const [pos, setPos] = useState<Position>({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null)
+
+  // Batasi posisi supaya seluruh modal tetap berada di dalam layar
+  const clampPosition = useCallback((x: number, y: number): Position => {
+    const panel = panelRef.current
+    if (!panel) return { x, y }
+    const { width, height } = panel.getBoundingClientRect()
+    const maxX = Math.max((window.innerWidth - width) / 2, 0)
+    const maxY = Math.max((window.innerHeight - height) / 2, 0)
+    return {
+      x: Math.min(Math.max(x, -maxX), maxX),
+      y: Math.min(Math.max(y, -maxY), maxY),
+    }
+  }, [])
+
+  const handleDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Hanya klik kiri / sentuhan, dan jangan mulai geser saat menekan tombol (mis. tombol tutup)
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    if ((e.target as HTMLElement).closest('button')) return
+
+    dragRef.current = { startX: e.clientX, startY: e.clientY, originX: pos.x, originY: pos.y }
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setIsDragging(true)
+  }
+
+  const handleDragMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current
+    if (!drag) return
+    setPos(clampPosition(drag.originX + (e.clientX - drag.startX), drag.originY + (e.clientY - drag.startY)))
+  }
+
+  const handleDragEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return
+    dragRef.current = null
+    setIsDragging(false)
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    }
+  }
+
+  const resetPosition = () => setPos({ x: 0, y: 0 })
 
   // Ref supaya effect di bawah tidak jalan ulang (dan mencuri fokus) tiap parent re-render
   const onCloseRef = useRef(onClose)
@@ -75,9 +139,32 @@ export default function MessageModal({ isOpen, onClose, onSendMessage }: Message
     onCloseRef.current = onClose
   }, [onClose])
 
-  // Saat modal terbuka: kunci scroll halaman, fokus ke input tag, Escape untuk menutup
+  // Alert: fokus ke tombol, Escape menutup alert, alert sukses menutup sendiri
+  useEffect(() => {
+    noticeRef.current = notice
+    if (!notice) return
+
+    const focusTimer = setTimeout(() => noticeButtonRef.current?.focus(), 50)
+    const autoCloseTimer =
+      notice.type === 'success' ? setTimeout(() => setNotice(null), SUCCESS_NOTICE_MS) : undefined
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setNotice(null)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      clearTimeout(focusTimer)
+      if (autoCloseTimer) clearTimeout(autoCloseTimer)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [notice])
+
+  // Saat modal terbuka: posisi di tengah, kunci scroll halaman, fokus ke input tag, Escape untuk menutup
   useEffect(() => {
     if (!isOpen) return
+
+    setPos({ x: 0, y: 0 })
 
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -85,7 +172,8 @@ export default function MessageModal({ isOpen, onClose, onSendMessage }: Message
     const focusTimer = setTimeout(() => tagInputRef.current?.focus(), 50)
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseRef.current()
+      // Kalau alert sedang tampil, Escape hanya menutup alert (ditangani effect di atas)
+      if (e.key === 'Escape' && !noticeRef.current) onCloseRef.current()
     }
     window.addEventListener('keydown', handleKeyDown)
 
@@ -95,6 +183,14 @@ export default function MessageModal({ isOpen, onClose, onSendMessage }: Message
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [isOpen])
+
+  // Layar berubah ukuran / HP diputar / keyboard muncul: pastikan modal tidak keluar layar
+  useEffect(() => {
+    if (!isOpen) return
+    const handleResize = () => setPos((p) => clampPosition(p.x, p.y))
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [isOpen, clampPosition])
 
   // Saran user: yang belum dipilih dan cocok dengan yang diketik (tanda "@" di depan diabaikan)
   const typed = tagInput.trim().replace(/^@+/, '').toLowerCase()
@@ -149,12 +245,15 @@ export default function MessageModal({ isOpen, onClose, onSendMessage }: Message
 
     const token = getToken()
     if (!token) {
-      setErrorMessage('Sesi login tidak ditemukan. Silakan login ulang.')
+      setNotice({
+        type: 'error',
+        title: 'Pesan gagal terkirim',
+        text: 'Sesi login tidak ditemukan. Silakan login ulang.',
+      })
       return
     }
 
     setIsSending(true)
-    setErrorMessage('')
 
     try {
       // Nama & email tidak dikirim: server mengambilnya dari token + sheet Users
@@ -170,15 +269,23 @@ export default function MessageModal({ isOpen, onClose, onSendMessage }: Message
       const result: { message?: string } = await res.json().catch(() => ({}))
 
       if (!res.ok) {
-        setErrorMessage(
-          res.status === 401 || res.status === 403
-            ? 'Sesi login habis atau tidak punya akses. Silakan login ulang.'
-            : result.message || 'Gagal mengirim pesan. Coba lagi.'
-        )
+        setNotice({
+          type: 'error',
+          title: 'Pesan gagal terkirim',
+          text:
+            res.status === 401 || res.status === 403
+              ? 'Sesi login habis atau tidak punya akses. Silakan login ulang.'
+              : result.message || 'Gagal mengirim pesan. Coba lagi.',
+        })
         return
       }
 
       onSendMessage?.({ tags: finalTags, message: text })
+      setNotice({
+        type: 'success',
+        title: 'Pesan terkirim',
+        text: 'Pesan Anda berhasil dikirim.',
+      })
 
       setTags([])
       setTagInput('')
@@ -186,43 +293,124 @@ export default function MessageModal({ isOpen, onClose, onSendMessage }: Message
       setMessageTouched(false)
       onClose()
     } catch {
-      setErrorMessage('Tidak bisa terhubung ke server. Periksa koneksi Anda.')
+      setNotice({
+        type: 'error',
+        title: 'Pesan gagal terkirim',
+        text: 'Tidak bisa terhubung ke server. Periksa koneksi Anda.',
+      })
     } finally {
       setIsSending(false)
     }
   }
 
-  if (!isOpen) return null
+  // Alert di tengah layar (sukses / gagal). Dirender di luar pengecekan isOpen supaya
+  // alert sukses tetap terlihat setelah modal menutup.
+  const noticeView = notice && (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="message-alert-title"
+      aria-describedby="message-alert-text"
+    >
+      <div
+        className="absolute inset-0 bg-black/50"
+        onClick={() => setNotice(null)}
+        aria-hidden="true"
+      />
+
+      <div className="relative w-full max-w-sm rounded-2xl bg-slate-900 text-white border border-white/10 shadow-2xl px-6 py-7 text-center">
+        <div
+          className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full ${
+            notice.type === 'success' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
+          }`}
+        >
+          {notice.type === 'success' ? (
+            <FaCheckCircle className="text-3xl" aria-hidden="true" />
+          ) : (
+            <FaExclamationCircle className="text-3xl" aria-hidden="true" />
+          )}
+        </div>
+
+        <h3 id="message-alert-title" className="text-base font-bold">
+          {notice.title}
+        </h3>
+        <p id="message-alert-text" className="mt-1.5 text-sm text-gray-300">
+          {notice.text}
+        </p>
+
+        <button
+          ref={noticeButtonRef}
+          type="button"
+          onClick={() => setNotice(null)}
+          className={`mt-5 w-full px-4 py-2.5 text-xs font-bold text-white rounded-xl transition-colors active:scale-95 ${
+            notice.type === 'success' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'
+          }`}
+        >
+          {notice.type === 'success' ? 'OK' : 'Tutup'}
+        </button>
+      </div>
+    </div>
+  )
+
+  if (!isOpen) return <>{noticeView}</>
 
   return (
+    <>
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="message-modal-title"
     >
       <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/70"
         onClick={onClose}
         aria-hidden="true"
       />
 
-      <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-slate-900 text-white border border-white/10 shadow-2xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-          <h2 id="message-modal-title" className="text-base font-bold">
-            Kirim Pesan
-          </h2>
+      {/* Panel: lebar penuh di HP, maks. 28rem di layar besar. Tinggi dibatasi dvh supaya aman
+          saat keyboard HP muncul; isi form yang scroll, header tetap terlihat. */}
+      <div
+        ref={panelRef}
+        style={{ transform: `translate3d(${pos.x}px, ${pos.y}px, 0)` }}
+        className={`relative flex flex-col w-full max-w-md max-h-[calc(100dvh-1rem)] sm:max-h-[90dvh] rounded-2xl bg-slate-900 text-white border border-white/10 shadow-2xl ${
+          isDragging ? 'shadow-black/60' : ''
+        }`}
+      >
+        {/* Header = area untuk menggeser modal */}
+        <div
+          onPointerDown={handleDragStart}
+          onPointerMove={handleDragMove}
+          onPointerUp={handleDragEnd}
+          onPointerCancel={handleDragEnd}
+          onDoubleClick={resetPosition}
+          title="Seret untuk memindahkan, klik dua kali untuk kembali ke tengah"
+          className={`shrink-0 flex items-center justify-between gap-2 px-4 sm:px-5 py-3.5 border-b border-white/10 rounded-t-2xl select-none touch-none ${
+            isDragging ? 'cursor-grabbing' : 'cursor-grab'
+          }`}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <FaGripLines className="shrink-0 text-gray-500 text-sm" aria-hidden="true" />
+            <h2 id="message-modal-title" className="text-base font-bold truncate">
+              Kirim Pesan
+            </h2>
+          </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Tutup"
-            className="p-1.5 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+            className="shrink-0 p-1.5 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
           >
             <HiX className="text-xl" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} noValidate className="px-5 py-5 space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          noValidate
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-5 py-5 space-y-4"
+        >
           {/* Tag */}
           <div>
             <label htmlFor="message-tag-input" className="block text-xs font-semibold text-gray-300 mb-1.5">
@@ -280,7 +468,8 @@ export default function MessageModal({ isOpen, onClose, onSendMessage }: Message
                   maxLength={20}
                   disabled={tags.length >= TAG_USERS.length}
                   placeholder={tags.length ? '' : 'Pilih @developer atau @semidev'}
-                  className="flex-1 min-w-[8rem] bg-transparent text-sm text-white placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed"
+                  // text-base di HP mencegah iOS memperbesar layar otomatis saat input difokus
+                  className="flex-1 min-w-[8rem] bg-transparent text-base sm:text-sm text-white placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -300,7 +489,7 @@ export default function MessageModal({ isOpen, onClose, onSendMessage }: Message
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => selectUser(user.id)}
                       onMouseEnter={() => setActiveIndex(i)}
-                      className={`px-3.5 py-2 text-sm cursor-pointer transition-colors ${
+                      className={`px-3.5 py-2.5 sm:py-2 text-sm cursor-pointer transition-colors ${
                         i === highlighted ? 'bg-red-600 text-white' : 'text-gray-200 hover:bg-white/10'
                       }`}
                     >
@@ -333,7 +522,7 @@ export default function MessageModal({ isOpen, onClose, onSendMessage }: Message
               aria-invalid={messageTouched && !message.trim()}
               aria-describedby="message-body-hint"
               placeholder="Tulis pesan Anda di sini..."
-              className="w-full px-3.5 py-2.5 bg-white/10 border border-white/20 rounded-xl text-sm text-white placeholder-gray-400 focus:bg-white/15 focus:outline-none focus:border-red-500 transition-colors resize-none"
+              className="w-full px-3.5 py-2.5 bg-white/10 border border-white/20 rounded-xl text-base sm:text-sm text-white placeholder-gray-400 focus:bg-white/15 focus:outline-none focus:border-red-500 transition-colors resize-none"
             />
             <div id="message-body-hint" className="mt-1.5 flex items-center justify-between text-[11px]">
               <span className="text-red-400">
@@ -344,15 +533,6 @@ export default function MessageModal({ isOpen, onClose, onSendMessage }: Message
               </span>
             </div>
           </div>
-
-          {errorMessage && (
-            <p
-              role="alert"
-              className="px-3.5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-300"
-            >
-              {errorMessage}
-            </p>
-          )}
 
           <div className="flex items-center justify-end gap-2 pt-1">
             <button
@@ -374,5 +554,7 @@ export default function MessageModal({ isOpen, onClose, onSendMessage }: Message
         </form>
       </div>
     </div>
+    {noticeView}
+    </>
   )
 }

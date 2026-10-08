@@ -361,25 +361,6 @@ export default function Navbar({ onSearch, onSendMessage }: NavbarProps) {
                 </a>
               )
             })}
-
-            {/* Pencarian: tampilan sama seperti nav link */}
-            <button
-              type="button"
-              aria-label={isSearchOpen ? 'Tutup pencarian' : 'Buka pencarian'}
-              aria-expanded={isSearchOpen}
-              aria-controls="navbar-search"
-              onClick={toggleSearch}
-              className={`group relative py-1 transition-colors duration-300 ease-in-out ${
-                isSearchOpen ? 'text-red-500 font-bold' : 'text-gray-200 hover:text-white'
-              }`}
-            >
-              Pencarian
-              <span
-                className={`absolute bottom-0 left-0 h-[2px] bg-red-500 transition-all duration-300 ease-in-out ${
-                  isSearchOpen ? 'w-full' : 'w-0 group-hover:w-full'
-                }`}
-              />
-            </button>
           </nav>
 
           {/* Desktop Dashboard & Search Button */}
@@ -405,6 +386,23 @@ export default function Navbar({ onSearch, onSendMessage }: NavbarProps) {
                 </a>
               </>
             )}
+
+            {/* Pencarian: icon di paling pojok kanan (kaca pembesar, berubah jadi X saat terbuka) */}
+            <button
+              type="button"
+              aria-label={isSearchOpen ? 'Tutup pencarian' : 'Buka pencarian'}
+              title={isSearchOpen ? 'Tutup pencarian' : 'Pencarian'}
+              aria-expanded={isSearchOpen}
+              aria-controls="navbar-search"
+              onClick={toggleSearch}
+              className={`p-2 rounded-lg transition-colors duration-300 ${
+                isSearchOpen
+                  ? 'bg-red-600 text-white'
+                  : 'text-gray-200 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              {isSearchOpen ? <HiX className="text-lg" /> : <FaMagnifyingGlass className="text-sm" />}
+            </button>
           </div>
 
           {/* Mobile Hamburger & Search */}
