@@ -104,6 +104,10 @@ export default function UsersTab({ userRole }: UsersTabProps) {
   const [showFormPassword, setShowFormPassword] = useState<boolean>(false);
   const [search, setSearch] = useState<string>('');
 
+  // Modal konfirmasi hapus
+  const [userToDelete, setUserToDelete] = useState<UserAccount | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
   // Hitung mutasi yang sedang berjalan supaya polling tidak menimpa update optimistik.
   const pendingMutations = useRef<number>(0);
   // Selalu simpan data terbaru supaya snapshot rollback akurat.
@@ -256,17 +260,47 @@ export default function UsersTab({ userRole }: UsersTabProps) {
     );
   };
 
-  // ====== DELETE ======
-  const handleDeleteUser = (usr: UserAccount) => {
+  // ====== DELETE (dengan modal konfirmasi) ======
+  // Klik tombol "Hapus" di tabel -> hanya membuka modal
+  const openDeleteModal = (usr: UserAccount) => {
     if (!canManage) return;
-    if (!window.confirm(`Hapus user "${usr.name}"? Tindakan ini tidak bisa dibatalkan.`)) return;
-    if (editingEmail !== null && sameEmail(editingEmail, usr.email)) resetForm();
-    runMutation(
-      (prev) => prev.filter((u) => !sameEmail(u.email, usr.email)),
-      () => api.delete('/users', { data: { email: usr.email } }),
-      'User berhasil dihapus.'
-    );
+    setUserToDelete(usr);
   };
+
+  const closeDeleteModal = useCallback(() => {
+    if (isDeleting) return; // jangan tutup saat proses hapus berjalan
+    setUserToDelete(null);
+  }, [isDeleting]);
+
+  // Klik "Ya, Hapus" di modal -> eksekusi penghapusan
+  const confirmDelete = async () => {
+    if (!canManage || !userToDelete || isDeleting) return;
+    const target = userToDelete;
+
+    if (editingEmail !== null && sameEmail(editingEmail, target.email)) resetForm();
+
+    setIsDeleting(true);
+    try {
+      await runMutation(
+        (prev) => prev.filter((u) => !sameEmail(u.email, target.email)),
+        () => api.delete('/users', { data: { email: target.email } }),
+        'User berhasil dihapus.'
+      );
+    } finally {
+      setIsDeleting(false);
+      setUserToDelete(null);
+    }
+  };
+
+  // Tutup modal dengan tombol Escape
+  useEffect(() => {
+    if (!userToDelete) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeDeleteModal();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [userToDelete, closeDeleteModal]);
 
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -538,7 +572,7 @@ export default function UsersTab({ userRole }: UsersTabProps) {
                           <button
                             type="button"
                             disabled={isTemp}
-                            onClick={() => handleDeleteUser(usr)}
+                            onClick={() => openDeleteModal(usr)}
                             className="bg-red-950/60 border border-red-800 text-red-300 hover:bg-red-900 px-3 py-1 rounded-lg text-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             Hapus
@@ -563,6 +597,70 @@ export default function UsersTab({ userRole }: UsersTabProps) {
           </tbody>
         </table>
       </div>
+
+      {/* Modal Konfirmasi Hapus User */}
+      {userToDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          onClick={closeDeleteModal}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-modal-title"
+            aria-describedby="delete-modal-desc"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-4"
+          >
+            <div className="flex items-start gap-3">
+              <div className="shrink-0 w-10 h-10 rounded-full bg-red-950 border border-red-800 flex items-center justify-center">
+                <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h3 id="delete-modal-title" className="text-sm font-semibold text-white">
+                  Hapus User?
+                </h3>
+                <p id="delete-modal-desc" className="text-xs text-zinc-400 mt-1">
+                  Anda akan menghapus user berikut. Tindakan ini tidak bisa dibatalkan.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-3 space-y-1">
+              <p className="text-xs font-medium text-white break-words">{userToDelete.name}</p>
+              <p className="text-[11px] text-zinc-400 break-all">{userToDelete.email}</p>
+              <p className="text-[10px] uppercase font-semibold text-red-500">{userToDelete.role}</p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={closeDeleteModal}
+                disabled={isDeleting}
+                className="bg-zinc-800 border border-zinc-700 hover:border-zinc-500 text-zinc-200 text-xs px-4 py-2 rounded-xl transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                autoFocus
+                className="bg-red-600 hover:bg-red-700 text-white text-xs font-medium px-4 py-2 rounded-xl transition-all shadow-lg cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isDeleting ? 'Menghapus...' : 'Ya, Hapus'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
