@@ -33,7 +33,15 @@ interface UserForm {
 }
 
 // Role yang diterima backend (di luar daftar ini backend akan mengabaikannya).
-const AVAILABLE_ROLES = ['developer', 'semi dev', 'admin', 'karyawan', 'sales', 'finance', 'gudang'];
+// 'cs' = customer service (bisa membalas Pop Chat customer).
+const AVAILABLE_ROLES = ['developer', 'semi dev', 'admin', 'karyawan', 'sales', 'finance', 'gudang', 'cs'];
+
+// Teks yang ditampilkan di dropdown (nilai yang disimpan tetap sesuai AVAILABLE_ROLES)
+const ROLE_LABELS: Record<string, string> = {
+  cs: 'cs (customer service)',
+};
+const roleLabel = (r: string): string => ROLE_LABELS[r] ?? r;
+
 // Hanya role ini yang boleh tambah / edit / hapus / ganti role (sesuai allowDeveloperAndAdmin).
 const MANAGER_ROLES = ['developer', 'admin'];
 
@@ -451,7 +459,7 @@ export default function UsersTab({ userRole }: UsersTabProps) {
               >
                 {AVAILABLE_ROLES.map((r) => (
                   <option key={r} value={r}>
-                    {r}
+                    {roleLabel(r)}
                   </option>
                 ))}
               </select>
@@ -552,7 +560,7 @@ export default function UsersTab({ userRole }: UsersTabProps) {
                         >
                           {roleOptions.map((roleOption) => (
                             <option key={roleOption} value={roleOption}>
-                              {roleOption}
+                              {roleLabel(roleOption)}
                             </option>
                           ))}
                         </select>

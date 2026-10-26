@@ -7,6 +7,7 @@ import ServerTab from './Tabs/ServerTab';
 import UsersTab from './Tabs/UsersTab';
 import SalesTab from './Tabs/SalesTab';
 import DeveloperTab from './Tabs/DeveloperTab';
+import PopChatTab from './Tabs/PopChatTab';
 
 interface Item {
   No_ID: number | string;
@@ -101,6 +102,8 @@ export default function Dashboard() {
       setActiveTab('sales');
     } else if (role === 'finance') {
       setActiveTab('finance');
+    } else if (role === 'cs') {
+      setActiveTab('popchat');
     }
   }, []);
 
@@ -181,6 +184,9 @@ export default function Dashboard() {
     userRole === 'sales' ||
     userRole === 'seles';
   const canAccessDeveloper = userRole === 'developer' || userRole === 'semi dev';
+  // Balas Pop Chat: sama dengan MODULE_ROLES.popchat di backend (developer, admin, cs)
+  const canAccessPopChat =
+    userRole === 'developer' || userRole === 'admin' || userRole === 'cs';
 
   const handleTabChange = (tab: string, allowed: boolean) => {
     if (allowed) setActiveTab(tab);
@@ -264,6 +270,20 @@ export default function Dashboard() {
               </button>
             )}
 
+            {canAccessPopChat && (
+              <button
+                type="button"
+                onClick={() => handleTabChange('popchat', canAccessPopChat)}
+                className={`text-xs font-medium px-4 py-2 rounded-lg transition-all cursor-pointer ${
+                  activeTab === 'popchat'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                }`}
+              >
+                Pop Chat
+              </button>
+            )}
+
             {canAccessServer && (
               <button
                 type="button"
@@ -332,6 +352,14 @@ export default function Dashboard() {
             isViewOnly={isViewOnly}
             userRole={userRole}
             getAuthHeaders={getAuthHeaders}
+          />
+        )}
+
+        {activeTab === 'popchat' && canAccessPopChat && (
+          <PopChatTab
+            userRole={userRole}
+            getAuthHeaders={getAuthHeaders}
+            onNotify={showNotification}
           />
         )}
 

@@ -18,6 +18,7 @@ const navLinks = [
   { name: 'Customers', href: '#customers', id: 'customers' },
   { name: 'Partners', href: '#partners', id: 'partners' },
   { name: 'Contact S3', href: '#contact', id: 'contact' },
+  { name: 'Dashboard', href: '/s3/dashboard', id: 'dashboard' },
 ]
 
 // Tinggi total top-bar + main navbar, dipakai sebagai offset saat scroll ke section
@@ -201,9 +202,13 @@ export default function Navbar({ onSearch, onSendMessage }: NavbarProps) {
     e: React.MouseEvent<HTMLAnchorElement>,
     targetSelector: string
   ) => {
-    e.preventDefault()
     closeMenu()
     closeSearch()
+
+    // Link ke halaman lain (mis. /s3/dashboard): biarkan browser berpindah halaman
+    if (!targetSelector.startsWith('#')) return
+
+    e.preventDefault()
 
     const targetElement = document.querySelector<HTMLElement>(targetSelector)
     if (targetElement) {
@@ -236,6 +241,12 @@ export default function Navbar({ onSearch, onSendMessage }: NavbarProps) {
       navLinks.find((l) => l.id.includes(q) || l.name.toLowerCase().includes(q))
 
     if (target) {
+      // Link halaman lain (mis. /s3/dashboard): pindah halaman
+      if (!target.href.startsWith('#')) {
+        window.location.assign(target.href)
+        return
+      }
+
       const el = document.getElementById(target.id)
       if (el) {
         closeSearch()

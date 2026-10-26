@@ -3,6 +3,7 @@ import AboutUs from './components/Home/AboutUs'
 import OurCustomers from './components/Home/OurCustomers'
 import PartnerBrands from './components/Home/PartnerBrands'
 import ContactSection from './components/Home/ContactSection'
+import PopChat from './components/Home/PopChat'
 
 export default function App() {
   return (
@@ -33,6 +34,9 @@ export default function App() {
           <ContactSection />
         </section>
       </main>
+
+      {/* Pop Chat customer (floating, pojok kanan bawah) */}
+      <PopChat />
     </div>
   )
 }
