@@ -30,6 +30,10 @@ interface SalePayload {
   nama_seles: string;
   satuan?: string;
   jumlah?: number | string;
+  no_seles_invoice?: string;
+  no_do?: string;
+  // true jika nama barang diketik manual -> backend tidak cek stok, langsung masuk ke stok
+  manual?: boolean;
 }
 
 // Bentuk data yang dibaca dari GET /sales (kolom sheet: Pcs | Pack | Kilogram)
@@ -45,6 +49,8 @@ interface SaleRow {
   Pcs?: string;
   Pack?: string;
   Kilogram?: string;
+  'No Seles Invoice'?: string;
+  'No DO'?: string;
   [key: string]: any;
 }
 
@@ -104,6 +110,11 @@ export default function SalesTab({
   const [jumlah, setJumlah] = useState<number | string>(1);
   const [tgl, setTgl] = useState<string>(todayString());
   const [status, setStatus] = useState<string>('success');
+  const [noSelesInvoice, setNoSelesInvoice] = useState<string>('');
+  const [noDO, setNoDO] = useState<string>('');
+
+  // Nama barang asli saat edit (untuk mendeteksi jika barang diganti manual)
+  const [originalDeskripsi, setOriginalDeskripsi] = useState<string>('');
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -183,6 +194,9 @@ export default function SalesTab({
     setNamaSeles('');
     setTgl(todayString());
     setStatus('success');
+    setNoSelesInvoice('');
+    setNoDO('');
+    setOriginalDeskripsi('');
     setJumlah(activeUnitTab === 'Kilogram' ? 0.5 : 1);
   };
 
@@ -226,6 +240,9 @@ export default function SalesTab({
     setNamaSeles(sale.nama_seles || '');
     setTgl(sale.tgl || todayString());
     setStatus((sale.status || 'success').toLowerCase());
+    setNoSelesInvoice(sale['No Seles Invoice'] || '');
+    setNoDO(sale['No DO'] || '');
+    setOriginalDeskripsi(sale.Deskripsi || '');
     setActiveUnitTab(satuan);
     setJumlah(qty || (satuan === 'Kilogram' ? 0.5 : 1));
 
@@ -245,6 +262,11 @@ export default function SalesTab({
 
     const isEdit = editingId !== null;
 
+    // Manual = nama barang diketik sendiri. Saat edit, hanya dianggap manual
+    // jika nama barang diubah (supaya edit biasa tidak menambah stok).
+    const isManualItem =
+      inputMode === 'manual' && (!isEdit || deskripsi.trim() !== originalDeskripsi.trim());
+
     const payload: SalePayload = {
       ...(isEdit ? { id: editingId as string } : {}),
       Deskripsi: deskripsi,
@@ -256,6 +278,9 @@ export default function SalesTab({
       tgl: tgl || todayString(),
       status: status,
       nama_seles: namaSeles || userRole,
+      no_seles_invoice: noSelesInvoice,
+      no_do: noDO,
+      manual: isManualItem,
     };
 
     try {
@@ -327,6 +352,8 @@ export default function SalesTab({
       (sale.Deskripsi || '').toLowerCase().includes(q) ||
       (sale.Costumer || '').toLowerCase().includes(q) ||
       (sale.nama_seles || '').toLowerCase().includes(q) ||
+      (sale['No Seles Invoice'] || '').toLowerCase().includes(q) ||
+      (sale['No DO'] || '').toLowerCase().includes(q) ||
       satuan.toLowerCase().includes(q)
     );
   });
@@ -598,6 +625,36 @@ export default function SalesTab({
               />
             </div>
 
+            {/* No Seles Invoice */}
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">
+                No Seles Invoice
+              </label>
+              <input
+                type="text"
+                placeholder="Contoh: INV-2026-001"
+                value={noSelesInvoice}
+                onChange={(e) => setNoSelesInvoice(e.target.value)}
+                disabled={isViewOnly}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-red-600 transition-colors"
+              />
+            </div>
+
+            {/* No DO */}
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">
+                No DO
+              </label>
+              <input
+                type="text"
+                placeholder="Contoh: DO-2026-001"
+                value={noDO}
+                onChange={(e) => setNoDO(e.target.value)}
+                disabled={isViewOnly}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-red-600 transition-colors"
+              />
+            </div>
+
             {/* Status */}
             <div>
               <label className="block text-xs font-medium text-zinc-400 mb-1.5">
@@ -660,7 +717,7 @@ export default function SalesTab({
           <div className="w-full sm:w-64">
             <input
               type="text"
-              placeholder="Cari deskripsi / costumer / sales..."
+              placeholder="Cari deskripsi / costumer / sales / invoice / DO..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-red-600 transition-colors"
@@ -683,6 +740,8 @@ export default function SalesTab({
                   <th className="pb-3 font-medium">Costumer</th>
                   <th className="pb-3 font-medium">Jumlah & Satuan</th>
                   <th className="pb-3 font-medium">Nama Sales</th>
+                  <th className="pb-3 font-medium">No Seles Invoice</th>
+                  <th className="pb-3 font-medium">No DO</th>
                   <th className="pb-3 font-medium">Harga Beli</th>
                   <th className="pb-3 font-medium">Harga Jual</th>
                   <th className="pb-3 font-medium text-center">Status</th>
@@ -713,6 +772,8 @@ export default function SalesTab({
                         <span className="text-[11px] text-zinc-400">({satuan})</span>
                       </td>
                       <td className="py-3 text-zinc-400 capitalize">{sale.nama_seles}</td>
+                      <td className="py-3 text-zinc-300">{sale['No Seles Invoice'] || '-'}</td>
+                      <td className="py-3 text-zinc-300">{sale['No DO'] || '-'}</td>
                       <td className="py-3 text-zinc-400">
                         Rp {Number(sale['harga beli'] || 0).toLocaleString('id-ID')}
                       </td>

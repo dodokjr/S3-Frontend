@@ -33,7 +33,7 @@ interface UserForm {
 }
 
 // Role yang diterima backend (di luar daftar ini backend akan mengabaikannya).
-const AVAILABLE_ROLES = ['developer', 'admin', 'karyawan', 'sales', 'finance', 'gudang'];
+const AVAILABLE_ROLES = ['developer', 'semi dev', 'admin', 'karyawan', 'sales', 'finance', 'gudang'];
 // Hanya role ini yang boleh tambah / edit / hapus / ganti role (sesuai allowDeveloperAndAdmin).
 const MANAGER_ROLES = ['developer', 'admin'];
 
